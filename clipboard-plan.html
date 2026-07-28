@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clipboard for This Machine — Discussion Plan</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f5f7;
+      --paper: #ffffff;
+      --ink: #202124;
+      --muted: #666b73;
+      --line: #dfe2e7;
+      --soft: #f7f8fa;
+      --accent: #4b58c9;
+      --accent-soft: #eef0ff;
+      --good: #147a52;
+      --good-soft: #eaf7f1;
+      --warn: #8a5b12;
+      --warn-soft: #fff6df;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    main {
+      width: min(980px, calc(100% - 32px));
+      margin: 32px auto 56px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 12px 35px rgb(24 30 45 / 8%);
+      overflow: hidden;
+    }
+
+    header {
+      padding: 44px 48px 36px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(145deg, var(--paper), var(--accent-soft));
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      max-width: 760px;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.08;
+      letter-spacing: -0.035em;
+    }
+
+    header p {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    section {
+      padding: 34px 48px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    section:last-child { border-bottom: 0; }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 21px;
+      letter-spacing: -0.015em;
+    }
+
+    h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+
+    p { margin: 8px 0; }
+
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 12px;
+      color: var(--accent);
+      font: 700 12px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .machine {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .machine div {
+      min-height: 92px;
+      padding: 16px;
+      background: var(--soft);
+    }
+
+    .machine strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .machine span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .callout {
+      margin-top: 18px;
+      padding: 15px 17px;
+      border-left: 3px solid var(--accent);
+      border-radius: 4px 8px 8px 4px;
+      background: var(--accent-soft);
+    }
+
+    .decision {
+      padding: 18px 20px;
+      border: 1px solid #b9dfcf;
+      border-radius: 10px;
+      background: var(--good-soft);
+    }
+
+    .decision strong { color: var(--good); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--soft);
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    tr.recommended td { background: var(--good-soft); }
+
+    .pill, code {
+      display: inline-block;
+      padding: 2px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--soft);
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    ol, ul {
+      margin: 12px 0 0;
+      padding-left: 22px;
+    }
+
+    li { margin: 8px 0; }
+
+    .phases {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .phase {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--soft);
+    }
+
+    .phase .number {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--accent);
+      font: 700 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    .questions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .question {
+      padding: 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .question p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .question .default {
+      margin-top: 10px;
+      color: var(--warn);
+      font-size: 13px;
+    }
+
+    .guardrail {
+      padding: 15px 17px;
+      border: 1px solid #ead49c;
+      border-radius: 9px;
+      background: var(--warn-soft);
+    }
+
+    .sources {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    a { color: var(--accent); }
+
+    @media (max-width: 760px) {
+      header, section { padding: 28px 24px; }
+      .machine, .phases, .questions { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141518;
+        --paper: #1d1f23;
+        --ink: #f0f1f3;
+        --muted: #a7abb3;
+        --line: #393d45;
+        --soft: #26292f;
+        --accent: #aeb5ff;
+        --accent-soft: #292d4b;
+        --good: #72d4ad;
+        --good-soft: #18362c;
+        --warn: #f0c46d;
+        --warn-soft: #3b301d;
+      }
+      tr.recommended td { background: var(--good-soft); }
+      .decision { border-color: #315c4c; }
+      .guardrail { border-color: #69572f; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="eyebrow">Discussion draft · 28 July 2026</span>
+      <h1>A clipboard that feels native to this machine</h1>
+      <p>Build a private, keyboard-first clipboard history for Ubuntu GNOME on Wayland: fast enough to summon, search, and reuse copied text without interrupting the current task.</p>
+    </header>
+
+    <section>
+      <h2>What the machine tells us</h2>
+      <div class="machine">
+        <div><strong>Desktop</strong><span>Ubuntu GNOME 46</span></div>
+        <div><strong>Display session</strong><span>Wayland, with XWayland available</span></div>
+        <div><strong>Current tooling</strong><span>Node 24 and Python 3.12; no Rust, Electron, or clipboard CLI</span></div>
+        <div><strong>Existing manager</strong><span>None detected</span></div>
+      </div>
+      <div class="callout">
+        <strong>The consequential constraint:</strong> Wayland intentionally limits background clipboard access. On GNOME, Shell-level integration is the cleanest path for continuous capture; a generic desktop or web app is a weaker foundation for a clipboard manager.
+      </div>
+    </section>
+
+    <section>
+      <h2>Recommended product shape</h2>
+      <div class="decision">
+        <strong>Trial a trusted existing GNOME option before building.</strong>
+        <p>Clipboard Indicator already covers the core workflow on this machine and can open history from a global shortcut. Trial it with <code>Super+V</code>; build only if a Windows-style floating flyout, rather than a top-bar-anchored popup, is a meaningful requirement.</p>
+      </div>
+      <p>If a custom build is still justified, keep the original direction: a GNOME Shell extension that is local-only, keyboard-first, and text-first.</p>
+    </section>
+
+    <section>
+      <h2>The Windows-style interaction contract</h2>
+      <ol>
+        <li>Press <code>Super+V</code> from any normal application.</li>
+        <li>A compact clipboard-history popup appears without switching applications.</li>
+        <li>The newest item is selected; typing filters the history immediately.</li>
+        <li>Use arrow keys to move, <code>Enter</code> to restore the selected item, and <code>Escape</code> or an outside click to dismiss.</li>
+        <li>The previous application keeps its context. The default action copies the item back; optional direct paste is a separate, explicit behavior.</li>
+      </ol>
+      <div class="callout">
+        <strong>Shortcut ownership on this machine:</strong> GNOME currently binds <code>Super+V</code> and <code>Super+M</code> to the message tray. To match Windows, remove only <code>Super+V</code> from that GNOME action, retain <code>Super+M</code> for notifications, and assign <code>Super+V</code> to clipboard history.
+      </div>
+    </section>
+
+    <section>
+      <h2>Already-built options worth considering</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Evidence</th>
+            <th>Security / privacy read</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="recommended">
+            <td><strong>Clipboard Indicator</strong><br><span class="pill">GNOME Extensions</span></td>
+            <td>About 2.43M downloads, 1.2K GitHub stars, active GNOME 46 release, and updates in May 2026. Includes search, images, pins, tags, app exclusions, private mode, and automatic clearing.</td>
+            <td>The exact GNOME 46 package was inspected: no network client or subprocess behavior was found. History is stored locally and unencrypted. GNOME review is useful scrutiny, not a formal security audit.</td>
+            <td><strong>Best first trial.</strong> It provides the shortcut-to-popup behavior, but the popup drops from the top bar. Disable image caching initially because large images have a documented Shell-freeze risk.</td>
+          </tr>
+          <tr>
+            <td><strong>GPaste</strong><br><span class="pill">Ubuntu repository</span></td>
+            <td>Available directly for Ubuntu Noble as <code>gpaste-2</code> plus <code>gnome-shell-extension-gpaste</code>. Mature upstream, 900+ GitHub stars, actively maintained.</td>
+            <td>The Ubuntu archive provides the strongest installation/supply-chain path of these choices. It uses a separate clipboard daemon plus Shell extension, increasing component count.</td>
+            <td><strong>Conservative alternative.</strong> Prefer if distro packaging matters more than a richer extension UI.</td>
+          </tr>
+          <tr>
+            <td><strong>Clipboard History</strong><br><span class="pill">GNOME Extensions</span></td>
+            <td>About 583K downloads, 600+ GitHub stars, active GNOME 46 release, search, private mode, and favorites-only persistence.</td>
+            <td>The exact GNOME 46 package showed no network client or subprocess behavior. Its append-only local store is performance-conscious, but still holds clipboard data unencrypted.</td>
+            <td><strong>Good, but second choice.</strong> The maintainer says it is in maintenance mode while being replaced by Ringboard.</td>
+          </tr>
+          <tr>
+            <td><strong>CopyQ / Diodon / Parcellite</strong></td>
+            <td>All are available from Ubuntu, but they are generic desktop managers rather than the strongest GNOME Shell path for this Wayland session.</td>
+            <td>Popularity or repository packaging does not remove Wayland integration limitations.</td>
+            <td><strong>Skip for this machine.</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="guardrail">
+        <strong>What “safe” can mean here:</strong> no clipboard manager is harmless by design—it must read copied passwords, tokens, messages, and other sensitive text. GNOME Shell extensions also run inside the desktop Shell rather than a strict sandbox. Prefer the official GNOME Extensions or Ubuntu repository package, keep history short, enable application exclusions/private mode, and clear history regularly.
+      </div>
+      <p><strong>Not recommended:</strong> Pano has a more visual flyout but still has an unresolved GNOME 46 support gap; the extension named “Clipboard Popup” explicitly targets the Windows interaction but remains unapproved and has negligible adoption. Neither meets the current “safe and popular on this machine” bar.</p>
+    </section>
+
+    <section>
+      <h2>Three viable directions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Direction</th>
+            <th>Best part</th>
+            <th>Cost / limitation</th>
+            <th>Fit here</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="recommended">
+            <td><strong>GNOME Shell extension</strong></td>
+            <td>Native background clipboard access and low-friction panel UI on Wayland.</td>
+            <td>Tied to GNOME APIs; Shell upgrades sometimes require compatibility work.</td>
+            <td><span class="pill">Recommended</span></td>
+          </tr>
+          <tr>
+            <td><strong>Extension + companion app</strong></td>
+            <td>Richer window, database, image previews, and stronger separation of concerns.</td>
+            <td>More moving parts, packaging, IPC, and failure modes before the core workflow is proven.</td>
+            <td><span class="pill">Phase 2 option</span></td>
+          </tr>
+          <tr>
+            <td><strong>Standalone GTK app</strong></td>
+            <td>Portable application architecture and familiar app window.</td>
+            <td>Background clipboard monitoring on GNOME Wayland is the hard part; may still need a Shell bridge.</td>
+            <td><span class="pill">Not first</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>The first useful version</h2>
+      <ul>
+        <li>Capture changed <strong>plain text</strong>, deduplicate consecutive copies, and move reused items to the top.</li>
+        <li>Open a compact searchable history from a global shortcut, tentatively <code>Super+V</code>.</li>
+        <li>Select with keyboard or pointer; selection restores the item to the clipboard.</li>
+        <li>Pin important snippets, delete individual items, and clear all unpinned history.</li>
+        <li>Keep a bounded local history—tentatively 200 items—and survive logout/restart.</li>
+        <li>Exclude empty values, very large payloads, and likely secrets when a conservative rule can identify them.</li>
+      </ul>
+      <div class="guardrail">
+        <strong>Explicitly outside the first version:</strong> cross-device sync, accounts, collaboration, OCR, clipboard transformations, rich HTML, file lists, and image history. These can be revisited after the text workflow proves itself.
+      </div>
+    </section>
+
+    <section>
+      <h2>Decision and delivery checkpoints</h2>
+      <div class="phases">
+        <article class="phase">
+          <span class="number">01 · TRIAL</span>
+          <h3>Use Clipboard Indicator</h3>
+          <p>Install from the official GNOME Extensions directory. Disable image caching, set a short history, enable password-manager exclusions, and use private mode deliberately.</p>
+          <p><strong>Pass:</strong> the existing tool is stable and covers the daily workflow without an unacceptable privacy or UX gap.</p>
+        </article>
+        <article class="phase">
+          <span class="number">02 · DECIDE</span>
+          <h3>Keep, switch, or build</h3>
+          <p>Record only concrete misses: performance, keyboard flow, secret handling, visual design, or reliability. If packaging trust is the concern, trial GPaste next.</p>
+          <p><strong>Pass:</strong> a custom build proceeds only with a crisp advantage existing tools cannot provide.</p>
+        </article>
+        <article class="phase">
+          <span class="number">03 · BUILD IF JUSTIFIED</span>
+          <h3>Prove the differentiator</h3>
+          <p>Start with clipboard access and the one workflow that creates the advantage, then add persistence and privacy safeguards.</p>
+          <p><strong>Pass:</strong> the custom version is measurably better at the reason we chose to build it.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Decisions for our discussion</h2>
+      <div class="questions">
+        <article class="question">
+          <h3>What should “clipboard” mean?</h3>
+          <p>A history manager, a reusable snippet library, or both?</p>
+          <div class="default"><strong>Working default:</strong> history first, pins provide lightweight snippets.</div>
+        </article>
+        <article class="question">
+          <h3>Copy or paste?</h3>
+          <p>Should choosing an item only put it on the clipboard, or also paste into the active app?</p>
+          <div class="default"><strong>Working default:</strong> copy only; auto-paste can be surprising and fragile.</div>
+        </article>
+        <article class="question">
+          <h3>What content matters?</h3>
+          <p>Plain text only, or are screenshots/images and copied files essential from day one?</p>
+          <div class="default"><strong>Working default:</strong> text first; assess images after the access spike.</div>
+        </article>
+        <article class="question">
+          <h3>How private should persistence be?</h3>
+          <p>Session-only, retained across restarts, or encrypted at rest?</p>
+          <div class="default"><strong>Working default:</strong> persisted locally with conservative exclusions and a one-action clear.</div>
+        </article>
+        <article class="question">
+          <h3>What is the primary surface?</h3>
+          <p>Is shortcut-to-popup enough, or must placement and styling closely mirror the Windows floating flyout?</p>
+          <div class="default"><strong>Working default:</strong> trial the top-bar popup first; a true floating flyout is the clearest possible reason to custom-build.</div>
+        </article>
+        <article class="question">
+          <h3>Personal tool or distributable product?</h3>
+          <p>Supporting only this machine is simpler than packaging for arbitrary GNOME versions.</p>
+          <div class="default"><strong>Working default:</strong> personal tool for GNOME 46, with clean seams for later packaging.</div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Privacy and failure boundaries</h2>
+      <ul>
+        <li>Pause capture while the screen is locked and never expose history on the lock screen.</li>
+        <li>Offer an obvious pause state for password managers, private work, or screen sharing.</li>
+        <li>Treat secret detection as defense in depth, not a guarantee; clipboard contents can be inherently sensitive.</li>
+        <li>Store only what the product promises, bound both item count and item size, and make deletion immediate.</li>
+        <li>Clean up Shell signals and timers on disable so extension reloads do not leak resources or duplicate entries.</li>
+      </ul>
+    </section>
+
+    <section class="sources">
+      <h2>Research anchors</h2>
+      <p>Machine facts and Ubuntu package candidates were inspected locally. Exact GNOME 46 distribution archives for the two leading extensions were downloaded and statically checked for obvious network and process-launch behavior. Adoption, compatibility, status, and features were cross-checked against <a href="https://extensions.gnome.org/extension/779/clipboard-indicator/">Clipboard Indicator</a>, <a href="https://extensions.gnome.org/extension/4839/clipboard-history/">Clipboard History</a>, their linked source repositories, the <a href="https://launchpad.net/ubuntu/+source/gpaste">Ubuntu GPaste package record</a>, the official <a href="https://gjs.guide/extensions/topics/quick-settings.html">GNOME Shell extension UI guide</a>, and the <a href="https://gjs.guide/extensions/upgrading/gnome-shell-46.html">GNOME 46 porting notes</a>.</p>
+    </section>
+  </main>
+</body>
+</html>

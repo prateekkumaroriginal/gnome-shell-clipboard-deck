@@ -1,0 +1,8 @@
+{
+  "name": "Clipboard",
+  "description": "A Windows-style Super+V clipboard history popup for GNOME Shell.",
+  "uuid": "windows-clipboard@local",
+  "shell-version": ["46"],
+  "settings-schema": "org.gnome.shell.extensions.windows-clipboard",
+  "version": 1
+}
