@@ -1,54 +1,98 @@
-# Clipboard
+# Clipboard Deck
 
-A personal Windows-style clipboard history extension for GNOME Shell 46.
+Clipboard Deck is a keyboard-first clipboard history popup for GNOME Shell 46.
+It keeps a bounded, searchable history of copied text and presents it in a
+compact Windows-inspired interface.
 
-## Behavior
+## Features
 
-- `Super+V` opens the popup.
-- Type to search.
-- `Up` and `Down` navigate.
-- `Enter` copies and attempts to paste.
-- `Shift+Enter` copies without direct paste.
-- `Ctrl+P` pins or unpins.
-- `Delete` removes the selected item.
-- `Escape` closes without changing the clipboard.
+- Search up to 200 recent text entries.
+- Navigate with `Up` and `Down`.
+- Press `Enter` to copy and attempt to paste the selected entry.
+- Press `Shift+Enter` to copy without direct paste.
+- Press `Ctrl+P` to pin or unpin an entry.
+- Press `Delete` to remove the selected entry.
+- Press `Escape` to close the popup.
+- Pause clipboard capture from the popup header.
 
-History is stored locally at:
+## Set the shortcut
 
-```text
-~/.cache/windows-clipboard@local/history.json
+GNOME's publication policy requires clipboard shortcuts to be chosen explicitly
+by the user. After installation:
+
+1. Open the Extensions app.
+2. Open Clipboard Deck's preferences.
+3. Select **Use Super+V**.
+
+The same preference window can be opened from a terminal:
+
+```bash
+gnome-extensions prefs clipboard-deck@prateekkumaroriginal.github.io
 ```
 
-The first release captures text only. Entries longer than 20,000 characters
-are ignored, and unpinned history is limited to 200 items.
+## Privacy
+
+Clipboard Deck reads text from the system clipboard so it can maintain its
+history. It never transmits clipboard contents or makes network requests.
+
+History is stored locally as plaintext at:
+
+```text
+~/.cache/clipboard-deck@prateekkumaroriginal.github.io/history.json
+```
+
+The containing directory is accessible only to the current user and the history
+file is written with mode `0600`. Clipboard histories can contain passwords,
+tokens, and other sensitive text; pause capture when handling sensitive data.
+Entries longer than 20,000 characters are ignored.
+
+## Build and test
+
+Requirements:
+
+- GNOME Shell 46
+- `gnome-extensions`
+- `glib-compile-schemas`
+- Node.js, for syntax validation
+- `unzip`, for bundle integrity validation
+
+Build the uploadable extension bundle:
+
+```bash
+make pack
+```
+
+Install the resulting bundle locally:
+
+```bash
+make install
+```
+
+On Wayland, a newly installed UUID may require logging out and back in before
+GNOME Shell discovers it.
+
+## Install a GitHub release
+
+Download the `.shell-extension.zip` file from the
+[latest release](https://github.com/prateekkumaroriginal/gnome-shell-clipboard-deck/releases/latest),
+then run:
+
+```bash
+gnome-extensions install --force \
+  clipboard-deck@prateekkumaroriginal.github.io.shell-extension.zip
+```
+
+Log out and back in if this is the first installation, enable Clipboard Deck in
+the Extensions app, and choose the shortcut in Preferences.
 
 ## Source layout
 
-- `extension/extension.js`: clipboard capture, persistence, popup, and shortcuts
+- `extension/extension.js`: clipboard capture, local history, popup, and shortcut
+- `extension/prefs.js`: explicit shortcut and privacy preferences
 - `extension/stylesheet.css`: GNOME Shell presentation
-- `extension/schemas/`: `Super+V` keybinding schema
+- `extension/schemas/`: GSettings schema
 - `PRODUCT.md` and `DESIGN.md`: product and visual contracts
 
-## Local installation
+## License
 
-The extension is installed at:
-
-```text
-~/.local/share/gnome-shell/extensions/windows-clipboard@local
-```
-
-GNOME notifications remain available on `Super+M`; `Super+V` is reserved for
-Clipboard. A newly installed local UUID becomes available after logging out and
-back in on this Wayland session.
-
-To disable Clipboard:
-
-```bash
-gnome-extensions disable windows-clipboard@local
-```
-
-To restore the previously installed Clipboard Indicator:
-
-```bash
-gnome-extensions enable clipboard-indicator@tudmotu.com
-```
+[MIT](LICENSE)

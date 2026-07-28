@@ -48,7 +48,7 @@ Use the GNOME Shell system font. The popup title is 18 px semibold, item text is
 
 ## Components
 
-### Clipboard Popup
+### Clipboard Deck Popup
 
 One modal Shell actor containing header, search, history list, empty state, and footer hints. It closes on `Escape`, outside click, shortcut toggle, workspace change, or lock.
 
