@@ -17,8 +17,6 @@ const POPUP_HEIGHT = 580;
 const SAVE_DELAY_MS = 250;
 const PASTE_DELAY_MS = 90;
 
-const Clipboard = St.Clipboard.get_default();
-
 function compactPreview(text) {
     const compact = text.replace(/\s+/g, ' ').trim();
     return compact.length > 180 ? `${compact.slice(0, 179)}…` : compact;
@@ -33,29 +31,34 @@ class HistoryStore {
         this.items = [];
     }
 
-    load() {
-        try {
-            const [ok, contents] = GLib.file_get_contents(this._path);
-            if (!ok)
-                return;
+    loadAsync(onLoaded) {
+        this._file.load_contents_async(null, (file, result) => {
+            try {
+                const [ok, contents] = file.load_contents_finish(result);
+                if (ok) {
+                    const parsed = JSON.parse(new TextDecoder().decode(contents));
+                    if (Array.isArray(parsed)) {
+                        this.items = parsed
+                            .filter(item => item && typeof item.text === 'string')
+                            .map(item => ({
+                                id: typeof item.id === 'string'
+                                    ? item.id
+                                    : GLib.uuid_string_random(),
+                                text: item.text.slice(0, MAX_ITEM_CHARS),
+                                pinned: Boolean(item.pinned),
+                                createdAt: Number(item.createdAt) || Date.now(),
+                            }));
+                        this._prune();
+                    }
+                }
+            } catch (error) {
+                if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+                    console.warn(`Clipboard Deck: could not load history: ${error.message}`);
+                this.items = [];
+            }
 
-            const parsed = JSON.parse(new TextDecoder().decode(contents));
-            if (!Array.isArray(parsed))
-                return;
-
-            this.items = parsed
-                .filter(item => item && typeof item.text === 'string')
-                .map(item => ({
-                    id: typeof item.id === 'string' ? item.id : GLib.uuid_string_random(),
-                    text: item.text.slice(0, MAX_ITEM_CHARS),
-                    pinned: Boolean(item.pinned),
-                    createdAt: Number(item.createdAt) || Date.now(),
-                }));
-            this._prune();
-        } catch (error) {
-            console.warn(`Clipboard: could not load history: ${error.message}`);
-            this.items = [];
-        }
+            onLoaded();
+        });
     }
 
     add(text) {
@@ -117,20 +120,18 @@ class HistoryStore {
             this._saveSource = 0;
         }
 
-        try {
-            GLib.mkdir_with_parents(this._directory, 0o700);
-            GLib.file_set_contents(this._path, JSON.stringify(this.items));
-        } catch (error) {
-            console.warn(`Clipboard: could not save history: ${error.message}`);
-        }
+        this._saveAsync();
     }
 
     _prune() {
-        const pinned = this.items.filter(item => item.pinned);
+        const pinned = this.items
+            .filter(item => item.pinned)
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, HISTORY_LIMIT);
         const recent = this.items
             .filter(item => !item.pinned)
             .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, HISTORY_LIMIT);
+            .slice(0, HISTORY_LIMIT - pinned.length);
         this.items = [...pinned, ...recent];
     }
 
@@ -147,13 +148,14 @@ class HistoryStore {
                 (file, result) => {
                     try {
                         file.replace_contents_finish(result);
+                        GLib.chmod(this._path, 0o600);
                     } catch (error) {
-                        console.warn(`Clipboard: async save failed: ${error.message}`);
+                        console.warn(`Clipboard Deck: async save failed: ${error.message}`);
                     }
                 }
             );
         } catch (error) {
-            console.warn(`Clipboard: could not schedule save: ${error.message}`);
+            console.warn(`Clipboard Deck: could not schedule save: ${error.message}`);
         }
     }
 }
@@ -166,19 +168,13 @@ class ClipboardPopup {
         this._visibleItems = [];
         this._rows = [];
         this._grab = null;
-        this._toastSource = 0;
         this._caretSource = 0;
         this._caretVisible = false;
-        this._signalIds = [];
         this._build();
     }
 
     destroy() {
         this.close(false);
-        if (this._toastSource) {
-            GLib.Source.source_remove(this._toastSource);
-            this._toastSource = 0;
-        }
         this._overlay.destroy();
     }
 
@@ -208,7 +204,7 @@ class ClipboardPopup {
             if (grab)
                 Main.popModal(grab);
             this._overlay.visible = false;
-            Main.notify('Clipboard', 'Could not open the keyboard popup.');
+            Main.notify('Clipboard Deck', 'Could not open the keyboard popup.');
             return;
         }
 
@@ -294,7 +290,7 @@ class ClipboardPopup {
         });
         header.add_child(new St.Label({
             style_class: 'wc-title',
-            text: 'Clipboard',
+            text: 'Clipboard Deck',
             y_align: Clutter.ActorAlign.CENTER,
         }));
         header.add_child(new St.Widget({x_expand: true}));
@@ -391,7 +387,7 @@ class ClipboardPopup {
                 ? 'Capture is paused. Your saved history is still available after you resume.'
                 : query
                     ? 'No copied items match this search.'
-                    : 'Copy something, then press Super+V to find it here.';
+                    : 'Copy something, then use your configured shortcut to find it here.';
             this._list.add_child(new St.Label({
                 style_class: 'wc-empty',
                 text,
@@ -609,18 +605,10 @@ export default class ClipboardExtension extends Extension {
         this.paused = false;
         this.settings = this.getSettings();
         this.store = new HistoryStore(this.uuid);
-        this.store.load();
         this.popup = new ClipboardPopup(this);
+        this._clipboard = St.Clipboard.get_default();
         this._pasteSource = 0;
 
-        this._selection = Shell.Global.get().get_display().get_selection();
-        this._selectionSignal = this._selection.connect(
-            'owner-changed',
-            (_selection, selectionType) => {
-                if (selectionType === Meta.SelectionType.SELECTION_CLIPBOARD)
-                    this._captureClipboard();
-            }
-        );
         this._sessionSignal = Main.sessionMode.connect('updated', () => {
             if (Main.sessionMode.isLocked)
                 this.popup?.close(false);
@@ -634,7 +622,22 @@ export default class ClipboardExtension extends Extension {
             () => this.popup.toggle()
         );
 
-        this._captureClipboard();
+        const activeStore = this.store;
+        activeStore.loadAsync(() => {
+            if (this.store !== activeStore)
+                return;
+
+            this.popup?.refresh();
+            this._selection = Shell.Global.get().get_display().get_selection();
+            this._selectionSignal = this._selection.connect(
+                'owner-changed',
+                (_selection, selectionType) => {
+                    if (selectionType === Meta.SelectionType.SELECTION_CLIPBOARD)
+                        this._captureClipboard();
+                }
+            );
+            this._captureClipboard();
+        });
     }
 
     disable() {
@@ -661,10 +664,11 @@ export default class ClipboardExtension extends Extension {
         this.store?.flush();
         this.store = null;
         this.settings = null;
+        this._clipboard = null;
     }
 
     setClipboard(text) {
-        Clipboard.set_text(St.ClipboardType.CLIPBOARD, text);
+        this._clipboard?.set_text(St.ClipboardType.CLIPBOARD, text);
     }
 
     schedulePaste(expectedWindow) {
@@ -679,7 +683,7 @@ export default class ClipboardExtension extends Extension {
                 if (expectedWindow && global.display.focus_window === expectedWindow)
                     this._sendShiftInsert();
                 else
-                    Main.notify('Clipboard', 'Copied. Press Ctrl+V to paste.');
+                    Main.notify('Clipboard Deck', 'Copied. Press Ctrl+V to paste.');
                 return GLib.SOURCE_REMOVE;
             }
         );
@@ -689,7 +693,7 @@ export default class ClipboardExtension extends Extension {
         if (this.paused || Main.sessionMode.isLocked)
             return;
 
-        Clipboard.get_text(St.ClipboardType.CLIPBOARD, (_clipboard, text) => {
+        this._clipboard?.get_text(St.ClipboardType.CLIPBOARD, (_clipboard, text) => {
             if (!this.store || this.paused || Main.sessionMode.isLocked || !text)
                 return;
 
@@ -715,8 +719,8 @@ export default class ClipboardExtension extends Extension {
             keyboard.notify_key(time, insert, Clutter.KeyState.RELEASED);
             keyboard.notify_key(time, shiftLeft, Clutter.KeyState.RELEASED);
         } catch (error) {
-            console.warn(`Clipboard: direct paste unavailable: ${error.message}`);
-            Main.notify('Clipboard', 'Copied. Press Ctrl+V to paste.');
+            console.warn(`Clipboard Deck: direct paste unavailable: ${error.message}`);
+            Main.notify('Clipboard Deck', 'Copied. Press Ctrl+V to paste.');
         }
     }
 }

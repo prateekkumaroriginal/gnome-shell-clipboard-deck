@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.clipboard-deck"
+          path="/org/gnome/shell/extensions/clipboard-deck/">
+    <key name="toggle-popup" type="as">
+      <default>[]</default>
+      <summary>Open clipboard history</summary>
+      <description>Keyboard shortcut configured explicitly by the user.</description>
+    </key>
+  </schema>
+</schemalist>
