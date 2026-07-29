@@ -60,8 +60,8 @@ export default class ClipboardDeckPreferences extends ExtensionPreferences {
 
         const privacyGroup = new Adw.PreferencesGroup({title: 'Privacy'});
         privacyGroup.add(new Adw.ActionRow({
-            title: 'Local text history',
-            subtitle: 'Copied text is stored only in your user cache and is never transmitted.',
+            title: 'Local clipboard history',
+            subtitle: 'Copied text and images are stored only in your user cache and are never transmitted.',
         }));
         page.add(privacyGroup);
 

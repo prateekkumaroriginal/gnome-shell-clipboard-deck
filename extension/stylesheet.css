@@ -102,6 +102,18 @@
   box-shadow: none;
 }
 
+.wc-image-content {
+  spacing: 12px;
+}
+
+.wc-thumbnail {
+  width: 76px;
+  height: 56px;
+  color: #abadb7;
+  background-color: #181a20;
+  border-radius: 6px;
+}
+
 .wc-preview {
   color: #f2f2f6;
   font-size: 14px;

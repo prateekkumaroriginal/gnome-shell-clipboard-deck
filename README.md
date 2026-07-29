@@ -1,12 +1,13 @@
 # Clipboard Deck
 
 Clipboard Deck is a keyboard-first clipboard history popup for GNOME Shell 46.
-It keeps a bounded, searchable history of copied text and presents it in a
+It keeps a bounded, searchable history of copied text and screenshots and presents it in a
 compact Windows-inspired interface.
 
 ## Features
 
-- Search up to 200 recent text entries.
+- Search up to 200 recent text and image entries.
+- See screenshot thumbnails and put a saved screenshot back on the clipboard.
 - Navigate with `Up` and `Down`.
 - Press `Enter` to copy and attempt to paste the selected entry.
 - Press `Shift+Enter` to copy without direct paste.
@@ -32,7 +33,7 @@ gnome-extensions prefs clipboard-deck@prateekkumaroriginal.github.io
 
 ## Privacy
 
-Clipboard Deck reads text from the system clipboard so it can maintain its
+Clipboard Deck reads text and images from the system clipboard so it can maintain its
 history. It never transmits clipboard contents or makes network requests.
 
 History is stored locally as plaintext at:
@@ -41,10 +42,13 @@ History is stored locally as plaintext at:
 ~/.cache/clipboard-deck@prateekkumaroriginal.github.io/history.json
 ```
 
+Screenshot files are stored alongside it in the private `images/` directory.
 The containing directory is accessible only to the current user and the history
-file is written with mode `0600`. Clipboard histories can contain passwords,
-tokens, and other sensitive text; pause capture when handling sensitive data.
+and image files are written with mode `0600`. Clipboard histories can contain
+passwords, tokens, and other sensitive content; pause capture when handling sensitive data.
 Entries longer than 20,000 characters are ignored.
+Individual images larger than 25 MiB are ignored, and saved images are capped
+at 250 MiB total.
 
 ## Build and test
 
