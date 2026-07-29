@@ -12,10 +12,19 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const HISTORY_LIMIT = 200;
 const MAX_ITEM_CHARS = 20_000;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+const IMAGE_CACHE_LIMIT = 250 * 1024 * 1024;
 const POPUP_WIDTH = 440;
 const POPUP_HEIGHT = 580;
 const SAVE_DELAY_MS = 250;
 const PASTE_DELAY_MS = 90;
+const IMAGE_MIME_TYPES = new Map([
+    ['image/png', 'png'],
+    ['image/jpeg', 'jpg'],
+    ['image/webp', 'webp'],
+    ['image/gif', 'gif'],
+    ['image/bmp', 'bmp'],
+]);
 
 function compactPreview(text) {
     const compact = text.replace(/\s+/g, ' ').trim();
@@ -25,6 +34,7 @@ function compactPreview(text) {
 class HistoryStore {
     constructor(uuid) {
         this._directory = GLib.build_filenamev([GLib.get_user_cache_dir(), uuid]);
+        this._imageDirectory = GLib.build_filenamev([this._directory, 'images']);
         this._path = GLib.build_filenamev([this._directory, 'history.json']);
         this._file = Gio.File.new_for_path(this._path);
         this._saveSource = 0;
@@ -39,15 +49,8 @@ class HistoryStore {
                     const parsed = JSON.parse(new TextDecoder().decode(contents));
                     if (Array.isArray(parsed)) {
                         this.items = parsed
-                            .filter(item => item && typeof item.text === 'string')
-                            .map(item => ({
-                                id: typeof item.id === 'string'
-                                    ? item.id
-                                    : GLib.uuid_string_random(),
-                                text: item.text.slice(0, MAX_ITEM_CHARS),
-                                pinned: Boolean(item.pinned),
-                                createdAt: Number(item.createdAt) || Date.now(),
-                            }));
+                            .map(item => this._deserialize(item))
+                            .filter(item => item !== null);
                         this._prune();
                     }
                 }
@@ -63,19 +66,89 @@ class HistoryStore {
 
     add(text) {
         text = text.slice(0, MAX_ITEM_CHARS);
-        const existingIndex = this.items.findIndex(item => item.text === text);
+        const existingIndex = this.items.findIndex(item =>
+            item.type === 'text' && item.text === text);
         let item;
 
         if (existingIndex >= 0)
             item = this.items.splice(existingIndex, 1)[0];
         else
-            item = {id: GLib.uuid_string_random(), text, pinned: false, createdAt: 0};
+            item = {
+                id: GLib.uuid_string_random(),
+                type: 'text',
+                text,
+                pinned: false,
+                createdAt: 0,
+            };
 
         item.createdAt = Date.now();
         this.items.unshift(item);
         this._prune();
         this.scheduleSave();
         return item;
+    }
+
+    addImage(mimeType, bytes, onAdded) {
+        const extension = IMAGE_MIME_TYPES.get(mimeType);
+        const byteSize = bytes.get_size();
+        if (!extension || byteSize <= 0 || byteSize > MAX_IMAGE_BYTES)
+            return;
+
+        const checksum = GLib.compute_checksum_for_bytes(
+            GLib.ChecksumType.SHA256,
+            bytes
+        );
+        const fileName = `${checksum}.${extension}`;
+        const path = GLib.build_filenamev([this._imageDirectory, fileName]);
+        try {
+            GLib.mkdir_with_parents(this._imageDirectory, 0o700);
+            Gio.File.new_for_path(path).replace_contents_async(
+                bytes.get_data(),
+                null,
+                false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                null,
+                (file, result) => {
+                    try {
+                        file.replace_contents_finish(result);
+                        GLib.chmod(path, 0o600);
+                    } catch (error) {
+                        console.warn(`Clipboard Deck: image save failed: ${error.message}`);
+                        return;
+                    }
+
+                    let item;
+                    const currentIndex = this.items.findIndex(candidate =>
+                        candidate.type === 'image' &&
+                        candidate.checksum === checksum);
+                    if (currentIndex >= 0)
+                        item = this.items.splice(currentIndex, 1)[0];
+                    else
+                        item = {
+                            id: GLib.uuid_string_random(),
+                            type: 'image',
+                            checksum,
+                            pinned: false,
+                            createdAt: 0,
+                        };
+
+                    item.mimeType = mimeType;
+                    item.fileName = fileName;
+                    item.byteSize = byteSize;
+                    item.createdAt = Date.now();
+                    this.items.unshift(item);
+                    this._prune();
+                    this.scheduleSave();
+                    onAdded?.(item);
+                }
+            );
+        } catch (error) {
+            console.warn(`Clipboard Deck: could not save image: ${error.message}`);
+        }
+    }
+
+    imagePath(item) {
+        return GLib.build_filenamev([this._imageDirectory, item.fileName]);
     }
 
     togglePinned(id) {
@@ -87,7 +160,10 @@ class HistoryStore {
     }
 
     remove(id) {
-        this.items = this.items.filter(item => item.id !== id);
+        const item = this.items.find(candidate => candidate.id === id);
+        this.items = this.items.filter(candidate => candidate.id !== id);
+        if (item?.type === 'image')
+            this._deleteImageIfUnused(item);
         this.scheduleSave();
     }
 
@@ -101,7 +177,7 @@ class HistoryStore {
 
     scheduleSave() {
         if (this._saveSource)
-            GLib.Source.source_remove(this._saveSource);
+            GLib.Source.remove(this._saveSource);
 
         this._saveSource = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT_IDLE,
@@ -116,7 +192,7 @@ class HistoryStore {
 
     flush() {
         if (this._saveSource) {
-            GLib.Source.source_remove(this._saveSource);
+            GLib.Source.remove(this._saveSource);
             this._saveSource = 0;
         }
 
@@ -124,15 +200,94 @@ class HistoryStore {
     }
 
     _prune() {
-        const pinned = this.items
+        const ordered = [
+            ...this.items
             .filter(item => item.pinned)
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, HISTORY_LIMIT);
-        const recent = this.items
+            .sort((a, b) => b.createdAt - a.createdAt),
+            ...this.items
             .filter(item => !item.pinned)
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, HISTORY_LIMIT - pinned.length);
-        this.items = [...pinned, ...recent];
+            .sort((a, b) => b.createdAt - a.createdAt),
+        ];
+        const kept = [];
+        const removedImages = [];
+        let imageBytes = 0;
+
+        for (const item of ordered) {
+            const nextImageBytes = imageBytes +
+                (item.type === 'image' ? item.byteSize : 0);
+            if (kept.length >= HISTORY_LIMIT ||
+                nextImageBytes > IMAGE_CACHE_LIMIT) {
+                if (item.type === 'image')
+                    removedImages.push(item);
+                continue;
+            }
+            kept.push(item);
+            imageBytes = nextImageBytes;
+        }
+        this.items = kept;
+        for (const item of removedImages)
+            this._deleteImageIfUnused(item);
+    }
+
+    _deserialize(item) {
+        if (!item || typeof item !== 'object')
+            return null;
+
+        const common = {
+            id: typeof item.id === 'string'
+                ? item.id
+                : GLib.uuid_string_random(),
+            pinned: Boolean(item.pinned),
+            createdAt: Number(item.createdAt) || Date.now(),
+        };
+
+        if (item.type === 'image') {
+            const safeFileName = typeof item.fileName === 'string' &&
+                GLib.path_get_basename(item.fileName) === item.fileName;
+            if (!safeFileName || !IMAGE_MIME_TYPES.has(item.mimeType) ||
+                typeof item.checksum !== 'string')
+                return null;
+            const image = {
+                ...common,
+                type: 'image',
+                mimeType: item.mimeType,
+                fileName: item.fileName,
+                checksum: item.checksum,
+                byteSize: Math.max(0, Number(item.byteSize) || 0),
+            };
+            return Gio.File.new_for_path(this.imagePath(image)).query_exists(null)
+                ? image
+                : null;
+        }
+
+        if (typeof item.text !== 'string')
+            return null;
+        return {
+            ...common,
+            type: 'text',
+            text: item.text.slice(0, MAX_ITEM_CHARS),
+        };
+    }
+
+    _deleteImageIfUnused(item, items = this.items) {
+        if (items.some(candidate =>
+            candidate !== item &&
+            candidate.type === 'image' &&
+            candidate.fileName === item.fileName))
+            return;
+
+        Gio.File.new_for_path(this.imagePath(item)).delete_async(
+            GLib.PRIORITY_DEFAULT,
+            null,
+            (file, result) => {
+                try {
+                    file.delete_finish(result);
+                } catch (error) {
+                    if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+                        console.warn(`Clipboard Deck: image cleanup failed: ${error.message}`);
+                }
+            }
+        );
     }
 
     _saveAsync() {
@@ -233,7 +388,11 @@ class ClipboardPopup {
             this._grab = null;
         }
         this._isOpen = false;
-        this._stopCaretBlink();
+        try {
+            this._stopCaretBlink();
+        } catch (error) {
+            console.warn(`Clipboard Deck: caret cleanup failed: ${error.message}`);
+        }
         global.display.set_cursor(Meta.Cursor.DEFAULT);
 
         if (!animate) {
@@ -379,7 +538,9 @@ class ClipboardPopup {
 
         const query = this._search.get_text().trim().toLocaleLowerCase();
         this._visibleItems = this._extension.store.ordered().filter(item =>
-            !query || item.text.toLocaleLowerCase().includes(query)
+            !query || (item.type === 'text'
+                ? item.text.toLocaleLowerCase().includes(query)
+                : 'screenshot image'.includes(query))
         );
 
         if (this._extension.paused || this._visibleItems.length === 0) {
@@ -413,12 +574,34 @@ class ClipboardPopup {
                 style_class: 'wc-item-main',
                 can_focus: false,
                 x_expand: true,
-                accessible_name: `Paste ${compactPreview(item.text)}`,
+                accessible_name: item.type === 'image'
+                    ? 'Paste screenshot'
+                    : `Paste ${compactPreview(item.text)}`,
             });
-            const content = new St.BoxLayout({x_expand: true});
+            const content = new St.BoxLayout({
+                style_class: item.type === 'image'
+                    ? 'wc-image-content'
+                    : '',
+                x_expand: true,
+            });
+
+            if (item.type === 'image') {
+                content.add_child(new St.Icon({
+                    style_class: 'wc-thumbnail',
+                    gicon: new Gio.FileIcon({
+                        file: Gio.File.new_for_path(
+                            this._extension.store.imagePath(item)
+                        ),
+                    }),
+                    icon_size: 56,
+                }));
+            }
+
             const preview = new St.Label({
                 style_class: 'wc-preview',
-                text: compactPreview(item.text),
+                text: item.type === 'image'
+                    ? 'Screenshot'
+                    : compactPreview(item.text),
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
             });
@@ -519,7 +702,7 @@ class ClipboardPopup {
 
     _stopCaretBlink() {
         if (this._caretSource) {
-            GLib.Source.source_remove(this._caretSource);
+            GLib.Source.remove(this._caretSource);
             this._caretSource = 0;
         }
 
@@ -592,11 +775,18 @@ class ClipboardPopup {
     }
 
     _activate(item, paste) {
-        this._extension.store.add(item.text);
-        this._extension.setClipboard(item.text);
         this.close();
-        if (paste)
-            this._extension.schedulePaste(this._previousWindow);
+        if (item.type === 'image') {
+            this._extension.setImageClipboard(item, success => {
+                if (success && paste)
+                    this._extension.schedulePaste(this._previousWindow);
+            });
+        } else {
+            this._extension.store.add(item.text);
+            this._extension.setClipboard(item.text);
+            if (paste)
+                this._extension.schedulePaste(this._previousWindow);
+        }
     }
 }
 
@@ -608,6 +798,7 @@ export default class ClipboardExtension extends Extension {
         this.popup = new ClipboardPopup(this);
         this._clipboard = St.Clipboard.get_default();
         this._pasteSource = 0;
+        this._captureSerial = 0;
 
         this._sessionSignal = Main.sessionMode.connect('updated', () => {
             if (Main.sessionMode.isLocked)
@@ -655,7 +846,7 @@ export default class ClipboardExtension extends Extension {
         }
 
         if (this._pasteSource) {
-            GLib.Source.source_remove(this._pasteSource);
+            GLib.Source.remove(this._pasteSource);
             this._pasteSource = 0;
         }
 
@@ -671,9 +862,32 @@ export default class ClipboardExtension extends Extension {
         this._clipboard?.set_text(St.ClipboardType.CLIPBOARD, text);
     }
 
+    setImageClipboard(item, onSet) {
+        const file = Gio.File.new_for_path(this.store.imagePath(item));
+        file.load_contents_async(null, (source, result) => {
+            try {
+                const [ok, contents] = source.load_contents_finish(result);
+                if (!ok || !this._clipboard) {
+                    onSet(false);
+                    return;
+                }
+                this._clipboard.set_content(
+                    St.ClipboardType.CLIPBOARD,
+                    item.mimeType,
+                    new GLib.Bytes(contents)
+                );
+                onSet(true);
+            } catch (error) {
+                console.warn(`Clipboard Deck: could not restore image: ${error.message}`);
+                Main.notify('Clipboard Deck', 'The saved screenshot is no longer available.');
+                onSet(false);
+            }
+        });
+    }
+
     schedulePaste(expectedWindow) {
         if (this._pasteSource)
-            GLib.Source.source_remove(this._pasteSource);
+            GLib.Source.remove(this._pasteSource);
 
         this._pasteSource = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
@@ -693,8 +907,35 @@ export default class ClipboardExtension extends Extension {
         if (this.paused || Main.sessionMode.isLocked)
             return;
 
+        const serial = ++this._captureSerial;
+        const mimeTypes = Array.from(this._clipboard?.get_mimetypes(
+            St.ClipboardType.CLIPBOARD
+        ) ?? []);
+        const imageMimeType = mimeTypes.find(type =>
+            IMAGE_MIME_TYPES.has(type.toLocaleLowerCase()));
+
+        if (imageMimeType) {
+            this._clipboard.get_content(
+                St.ClipboardType.CLIPBOARD,
+                imageMimeType,
+                (_clipboard, bytes) => {
+                    if (serial !== this._captureSerial || !this.store ||
+                        this.paused || Main.sessionMode.isLocked || !bytes)
+                        return;
+
+                    this.store.addImage(
+                        imageMimeType.toLocaleLowerCase(),
+                        bytes,
+                        () => this.popup?.refresh()
+                    );
+                }
+            );
+            return;
+        }
+
         this._clipboard?.get_text(St.ClipboardType.CLIPBOARD, (_clipboard, text) => {
-            if (!this.store || this.paused || Main.sessionMode.isLocked || !text)
+            if (serial !== this._captureSerial || !this.store ||
+                this.paused || Main.sessionMode.isLocked || !text)
                 return;
 
             if (!text.trim() || text.length > MAX_ITEM_CHARS)
