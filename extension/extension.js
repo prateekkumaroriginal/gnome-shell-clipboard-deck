@@ -955,7 +955,7 @@ class ClipboardPopup {
     _activate(item, paste) {
         this.close();
         if (item.type === 'image') {
-            if (this._extension.isTerminalWindow(this._previousWindow)) {
+            if (this._extension.isCodexCliWindow(this._previousWindow)) {
                 this._extension.setClipboard(
                     this._extension.store.imagePath(item),
                     true
@@ -1060,6 +1060,11 @@ export default class ClipboardExtension extends Extension {
         ].filter(Boolean).join(' ').toLocaleLowerCase();
         return /terminal|kitty|alacritty|wezterm|foot|terminator|tilix|xterm|hyper|warp/
             .test(identity);
+    }
+
+    isCodexCliWindow(window) {
+        const title = (window?.get_title?.() ?? '').toLocaleLowerCase();
+        return this.isTerminalWindow(window) && /\bcodex(?:[-_\s]|$)/.test(title);
     }
 
     setImageClipboard(item, onSet) {
