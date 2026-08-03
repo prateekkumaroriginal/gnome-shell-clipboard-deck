@@ -54,11 +54,11 @@ One modal Shell actor containing header, search, history list, empty state, and 
 
 ### Search
 
-Always visible. Placeholder: “Search copied items”. There is no leading search icon; the field is recognizable from its placement and placeholder. Focus is available immediately, with a blinking insertion caret, but arrow navigation works without requiring pointer focus.
+Always visible. Placeholder: “Search copied items or nicknames”. There is no leading search icon; the field is recognizable from its placement and placeholder. Focus is available immediately, with a blinking insertion caret, but arrow navigation works without requiring pointer focus.
 
 ### History Item
 
-Shows a text preview or image thumbnail and pin state. Time metadata is omitted. The pin is a 14 px, 45-degree tilted glyph in the top-right corner inside an unchanged 18 px hit target. It is outlined when unpinned and filled with the warm accent when pinned. The subtle background appears only while the pin control is hovered or focused, never merely because it is pinned. All clickable controls use the pointing-hand cursor. States: default, hover, keyboard-selected, pinned, and delete-confirmation.
+Shows a text preview or image thumbnail, optional searchable nickname, and pin state. Time metadata is omitted. The nickname appears in warm accent text at the item’s top-left. A focused item shows both actions; hovering an unpinned item also shows both, while a pinned but unfocused item shows only its pin. The pin is a 14 px, 45-degree tilted glyph in the top-right corner inside an unchanged 18 px hit target. It is outlined when unpinned and filled with the warm accent when pinned. The subtle background appears only while a control is hovered or focused. All clickable controls use the pointing-hand cursor. States: default, hover, keyboard-selected, nicknamed, pinned, and delete-confirmation.
 
 ### Privacy Control
 

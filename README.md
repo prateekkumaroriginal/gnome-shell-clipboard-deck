@@ -7,11 +7,13 @@ compact Windows-inspired interface.
 ## Features
 
 - Search up to 200 recent text and image entries.
+- Give any entry a searchable nickname with `Ctrl+N` or its `#` button.
 - See screenshot thumbnails and put a saved screenshot back on the clipboard.
 - Navigate with `Up` and `Down`.
 - Press `Enter` to copy and attempt to paste the selected entry.
 - Press `Shift+Enter` to copy without direct paste.
 - Press `Ctrl+P` to pin or unpin an entry.
+- Press `Ctrl+N` to add, edit, or clear the selected entry's nickname.
 - Press `Delete` to remove the selected entry.
 - Press `Escape` to close the popup.
 - Pause clipboard capture from the popup header.

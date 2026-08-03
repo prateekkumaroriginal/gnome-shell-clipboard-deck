@@ -12,12 +12,14 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const HISTORY_LIMIT = 200;
 const MAX_ITEM_CHARS = 20_000;
+const MAX_NICKNAME_CHARS = 80;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const IMAGE_CACHE_LIMIT = 250 * 1024 * 1024;
 const POPUP_WIDTH = 440;
 const POPUP_HEIGHT = 580;
 const SAVE_DELAY_MS = 250;
 const PASTE_DELAY_MS = 90;
+const PASTE_FOCUS_RETRIES = 5;
 const IMAGE_MIME_TYPES = new Map([
     ['image/png', 'png'],
     ['image/jpeg', 'jpg'],
@@ -159,6 +161,19 @@ class HistoryStore {
         this.scheduleSave();
     }
 
+    setNickname(id, nickname) {
+        const item = this.items.find(candidate => candidate.id === id);
+        if (!item)
+            return;
+
+        nickname = nickname.trim().slice(0, MAX_NICKNAME_CHARS);
+        if (nickname)
+            item.nickname = nickname;
+        else
+            delete item.nickname;
+        this.scheduleSave();
+    }
+
     remove(id) {
         const item = this.items.find(candidate => candidate.id === id);
         this.items = this.items.filter(candidate => candidate.id !== id);
@@ -240,6 +255,8 @@ class HistoryStore {
             pinned: Boolean(item.pinned),
             createdAt: Number(item.createdAt) || Date.now(),
         };
+        if (typeof item.nickname === 'string' && item.nickname.trim())
+            common.nickname = item.nickname.trim().slice(0, MAX_NICKNAME_CHARS);
 
         if (item.type === 'image') {
             const safeFileName = typeof item.fileName === 'string' &&
@@ -322,9 +339,11 @@ class ClipboardPopup {
         this._selectedIndex = 0;
         this._visibleItems = [];
         this._rows = [];
+        this._rowActions = [];
         this._grab = null;
         this._caretSource = 0;
         this._caretVisible = false;
+        this._editingNicknameId = null;
         this._build();
     }
 
@@ -346,6 +365,8 @@ class ClipboardPopup {
 
         this._position();
         this._previousWindow = global.display.focus_window;
+        this._editingNicknameId = null;
+        this._nicknameEditor.visible = false;
         this._search.set_text('');
         this._selectedIndex = 0;
         this._render();
@@ -388,6 +409,9 @@ class ClipboardPopup {
             this._grab = null;
         }
         this._isOpen = false;
+        this._editingNicknameId = null;
+        this._nicknameEditor.visible = false;
+        this._nicknameEntry.clutter_text.set_cursor_visible(false);
         try {
             this._stopCaretBlink();
         } catch (error) {
@@ -476,7 +500,7 @@ class ClipboardPopup {
 
         this._search = new St.Entry({
             style_class: 'wc-search',
-            hint_text: 'Search copied items',
+            hint_text: 'Search copied items or nicknames',
             can_focus: true,
             x_expand: true,
         });
@@ -486,9 +510,42 @@ class ClipboardPopup {
         });
         this._popup.add_child(this._search);
 
+        this._nicknameEditor = new St.BoxLayout({
+            style_class: 'wc-nickname-editor',
+            x_expand: true,
+            visible: false,
+        });
+        this._nicknameEditor.add_child(new St.Label({
+            style_class: 'wc-nickname-editor-label',
+            text: 'Nickname',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        this._nicknameEntry = new St.Entry({
+            style_class: 'wc-nickname-entry',
+            hint_text: 'e.g. greeting',
+            can_focus: true,
+            x_expand: true,
+        });
+        this._nicknameEntry.clutter_text.set_max_length(MAX_NICKNAME_CHARS);
+        this._nicknameEntry.clutter_text.connect('key-press-event',
+            (_actor, event) => this._onNicknameKeyPress(event));
+        this._nicknameEditor.add_child(this._nicknameEntry);
+
+        const nicknameSaveButton = new St.Button({
+            style_class: 'wc-nickname-save',
+            label: 'Save',
+            can_focus: true,
+            accessible_name: 'Save nickname',
+        });
+        nicknameSaveButton.connect('clicked', () =>
+            this._finishNicknameEdit(true));
+        this._usePointerCursor(nicknameSaveButton);
+        this._nicknameEditor.add_child(nicknameSaveButton);
+        this._popup.add_child(this._nicknameEditor);
+
         this._scroll = new St.ScrollView({
             style_class: 'wc-scroll',
-            overlay_scrollbars: true,
+            overlay_scrollbars: false,
             x_expand: true,
             y_expand: true,
         });
@@ -535,13 +592,18 @@ class ClipboardPopup {
     _render() {
         this._list.destroy_all_children();
         this._rows = [];
+        this._rowActions = [];
 
         const query = this._search.get_text().trim().toLocaleLowerCase();
-        this._visibleItems = this._extension.store.ordered().filter(item =>
-            !query || (item.type === 'text'
+        this._visibleItems = this._extension.store.ordered().filter(item => {
+            if (!query)
+                return true;
+            if (item.nickname?.toLocaleLowerCase().includes(query))
+                return true;
+            return item.type === 'text'
                 ? item.text.toLocaleLowerCase().includes(query)
-                : 'screenshot image'.includes(query))
-        );
+                : 'screenshot image'.includes(query);
+        });
 
         if (this._extension.paused || this._visibleItems.length === 0) {
             const text = this._extension.paused
@@ -564,24 +626,57 @@ class ClipboardPopup {
         );
 
         for (const [index, item] of this._visibleItems.entries()) {
-            const row = new St.BoxLayout({
+            const row = new St.Widget({
                 style_class: 'wc-item',
                 reactive: true,
                 x_expand: true,
+                layout_manager: new Clutter.BinLayout(),
             });
+            row.track_hover = true;
+            row.connect('notify::hover', () => this._updateRowActions(index));
 
-            const mainButton = new St.Button({
-                style_class: 'wc-item-main',
+            // This button deliberately extends beneath the row's padding and
+            // border, so the visible outline is part of the click target.
+            const hitTarget = new St.Button({
+                style_class: 'wc-item-hit-target',
                 can_focus: false,
                 x_expand: true,
+                y_expand: true,
                 accessible_name: item.type === 'image'
-                    ? 'Paste screenshot'
-                    : `Paste ${compactPreview(item.text)}`,
+                    ? `Paste screenshot${item.nickname
+                        ? `, nickname ${item.nickname}`
+                        : ''}`
+                    : `Paste ${compactPreview(item.text)}${item.nickname
+                        ? `, nickname ${item.nickname}`
+                        : ''}`,
             });
+            hitTarget.connect('clicked', () => this._activate(item, true));
+            hitTarget.connect('notify::hover', () => this._updateRowActions(index));
+            this._usePointerCursor(hitTarget);
+            row.add_child(hitTarget);
+
+            const itemLayout = new St.BoxLayout({
+                style_class: 'wc-item-layout',
+                x_expand: true,
+                y_expand: true,
+            });
+            const mainContent = new St.BoxLayout({
+                style_class: 'wc-item-main-content',
+                vertical: true,
+                x_expand: true,
+            });
+            if (item.nickname) {
+                const nickname = new St.Label({
+                    style_class: 'wc-nickname',
+                    text: item.nickname,
+                    x_expand: true,
+                });
+                nickname.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+                mainContent.add_child(nickname);
+            }
+
             const content = new St.BoxLayout({
-                style_class: item.type === 'image'
-                    ? 'wc-image-content'
-                    : '',
+                style_class: 'wc-item-content',
                 x_expand: true,
             });
 
@@ -602,15 +697,27 @@ class ClipboardPopup {
                 text: item.type === 'image'
                     ? 'Screenshot'
                     : compactPreview(item.text),
-                y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
             });
             preview.clutter_text.ellipsize = Pango.EllipsizeMode.END;
             content.add_child(preview);
-            mainButton.set_child(content);
-            mainButton.connect('clicked', () => this._activate(item, true));
-            this._usePointerCursor(mainButton);
-            row.add_child(mainButton);
+            mainContent.add_child(content);
+            itemLayout.add_child(mainContent);
+
+            const nicknameButton = new St.Button({
+                style_class: item.nickname ? 'wc-tag wc-tagged' : 'wc-tag',
+                can_focus: false,
+                accessible_name: item.nickname
+                    ? `Edit nickname ${item.nickname}`
+                    : 'Add nickname',
+                y_align: Clutter.ActorAlign.START,
+                visible: index === this._selectedIndex,
+                child: new St.Label({text: '#'}),
+            });
+            nicknameButton.connect('clicked', () =>
+                this._startNicknameEdit(item));
+            this._usePointerCursor(nicknameButton);
+            itemLayout.add_child(nicknameButton);
 
             const pinIcon = new St.Icon({
                 gicon: new Gio.FileIcon({
@@ -634,6 +741,7 @@ class ClipboardPopup {
                 checked: item.pinned,
                 accessible_name: item.pinned ? 'Unpin item' : 'Pin item',
                 y_align: Clutter.ActorAlign.START,
+                visible: item.pinned || index === this._selectedIndex,
                 child: pinIcon,
             });
             pinButton.connect('clicked', () => {
@@ -642,13 +750,22 @@ class ClipboardPopup {
                 this._focusSearch();
             });
             this._usePointerCursor(pinButton);
-            row.add_child(pinButton);
+            itemLayout.add_child(pinButton);
+
+            row.add_child(itemLayout);
 
             if (index === this._selectedIndex)
                 row.add_style_pseudo_class('selected');
 
             this._list.add_child(row);
             this._rows.push(row);
+            this._rowActions.push({
+                hitTarget,
+                nicknameButton,
+                pinButton,
+                pinned: item.pinned,
+            });
+            this._updateRowActions(index);
         }
     }
 
@@ -671,6 +788,46 @@ class ClipboardPopup {
 
         global.stage.set_key_focus(this._search.clutter_text);
         this._startCaretBlink();
+    }
+
+    _startNicknameEdit(item) {
+        this._editingNicknameId = item.id;
+        this._nicknameEntry.set_text(item.nickname ?? '');
+        this._nicknameEditor.visible = true;
+        this._stopCaretBlink();
+        global.stage.set_key_focus(this._nicknameEntry.clutter_text);
+        this._nicknameEntry.clutter_text.set_cursor_position(-1);
+        this._nicknameEntry.clutter_text.set_cursor_visible(true);
+    }
+
+    _finishNicknameEdit(save) {
+        if (!this._editingNicknameId)
+            return;
+
+        if (save) {
+            this._extension.store.setNickname(
+                this._editingNicknameId,
+                this._nicknameEntry.get_text()
+            );
+        }
+        this._editingNicknameId = null;
+        this._nicknameEditor.visible = false;
+        this._nicknameEntry.clutter_text.set_cursor_visible(false);
+        this._render();
+        this._focusSearch();
+    }
+
+    _onNicknameKeyPress(event) {
+        const symbol = event.get_key_symbol();
+        if (symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) {
+            this._finishNicknameEdit(true);
+            return Clutter.EVENT_STOP;
+        }
+        if (symbol === Clutter.KEY_Escape) {
+            this._finishNicknameEdit(false);
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
     }
 
     _startCaretBlink() {
@@ -758,6 +915,13 @@ class ClipboardPopup {
             return Clutter.EVENT_STOP;
         }
 
+        if (control && (symbol === Clutter.KEY_n || symbol === Clutter.KEY_N)) {
+            const item = this._visibleItems[this._selectedIndex];
+            if (item)
+                this._startNicknameEdit(item);
+            return Clutter.EVENT_STOP;
+        }
+
         return Clutter.EVENT_PROPAGATE;
     }
 
@@ -767,6 +931,7 @@ class ClipboardPopup {
                 row.add_style_pseudo_class('selected');
             else
                 row.remove_style_pseudo_class('selected');
+            this._updateRowActions(index);
         }
 
         const selected = this._rows[this._selectedIndex];
@@ -774,9 +939,32 @@ class ClipboardPopup {
             ensureActorVisibleInScrollView(this._scroll, selected);
     }
 
+    _updateRowActions(index) {
+        const row = this._rows[index];
+        const actions = this._rowActions[index];
+        if (!row || !actions)
+            return;
+
+        const selected = index === this._selectedIndex;
+        const hovered = row.hover || actions.hitTarget.hover;
+        actions.nicknameButton.visible = selected ||
+            (hovered && !actions.pinned);
+        actions.pinButton.visible = selected || hovered || actions.pinned;
+    }
+
     _activate(item, paste) {
         this.close();
         if (item.type === 'image') {
+            if (this._extension.isTerminalWindow(this._previousWindow)) {
+                this._extension.setClipboard(
+                    this._extension.store.imagePath(item),
+                    true
+                );
+                if (paste)
+                    this._extension.schedulePaste(this._previousWindow);
+                return;
+            }
+
             this._extension.setImageClipboard(item, success => {
                 if (success && paste)
                     this._extension.schedulePaste(this._previousWindow);
@@ -799,6 +987,7 @@ export default class ClipboardExtension extends Extension {
         this._clipboard = St.Clipboard.get_default();
         this._pasteSource = 0;
         this._captureSerial = 0;
+        this._skippedClipboardText = null;
 
         this._sessionSignal = Main.sessionMode.connect('updated', () => {
             if (Main.sessionMode.isLocked)
@@ -858,8 +1047,19 @@ export default class ClipboardExtension extends Extension {
         this._clipboard = null;
     }
 
-    setClipboard(text) {
+    setClipboard(text, skipCapture = false) {
+        if (skipCapture)
+            this._skippedClipboardText = text;
         this._clipboard?.set_text(St.ClipboardType.CLIPBOARD, text);
+    }
+
+    isTerminalWindow(window) {
+        const identity = [
+            window?.get_gtk_application_id?.(),
+            window?.get_wm_class?.(),
+        ].filter(Boolean).join(' ').toLocaleLowerCase();
+        return /terminal|kitty|alacritty|wezterm|foot|terminator|tilix|xterm|hyper|warp/
+            .test(identity);
     }
 
     setImageClipboard(item, onSet) {
@@ -889,15 +1089,23 @@ export default class ClipboardExtension extends Extension {
         if (this._pasteSource)
             GLib.Source.remove(this._pasteSource);
 
+        let attempts = 0;
         this._pasteSource = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
             PASTE_DELAY_MS,
             () => {
+                if (expectedWindow && global.display.focus_window === expectedWindow) {
+                    this._pasteSource = 0;
+                    this._sendPasteShortcut(expectedWindow);
+                    return GLib.SOURCE_REMOVE;
+                }
+
+                attempts++;
+                if (expectedWindow && attempts < PASTE_FOCUS_RETRIES)
+                    return GLib.SOURCE_CONTINUE;
+
                 this._pasteSource = 0;
-                if (expectedWindow && global.display.focus_window === expectedWindow)
-                    this._sendShiftInsert();
-                else
-                    Main.notify('Clipboard Deck', 'Copied. Press Ctrl+V to paste.');
+                Main.notify('Clipboard Deck', 'Copied. Press Ctrl+V to paste.');
                 return GLib.SOURCE_REMOVE;
             }
         );
@@ -938,6 +1146,11 @@ export default class ClipboardExtension extends Extension {
                 this.paused || Main.sessionMode.isLocked || !text)
                 return;
 
+            if (text === this._skippedClipboardText) {
+                this._skippedClipboardText = null;
+                return;
+            }
+
             if (!text.trim() || text.length > MAX_ITEM_CHARS)
                 return;
 
@@ -946,19 +1159,20 @@ export default class ClipboardExtension extends Extension {
         });
     }
 
-    _sendShiftInsert() {
+    _sendPasteShortcut(window) {
         try {
             const keyboard = Clutter.get_default_backend()
                 .get_default_seat()
                 .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
-            const time = Clutter.get_current_event_time() * 1000;
-            const shiftLeft = 42;
-            const insert = 110;
+            const keys = this.isTerminalWindow(window)
+                ? [29, 42, 47] // Ctrl+Shift+V
+                : [42, 110]; // Shift+Insert
+            const time = GLib.get_monotonic_time();
 
-            keyboard.notify_key(time, shiftLeft, Clutter.KeyState.PRESSED);
-            keyboard.notify_key(time, insert, Clutter.KeyState.PRESSED);
-            keyboard.notify_key(time, insert, Clutter.KeyState.RELEASED);
-            keyboard.notify_key(time, shiftLeft, Clutter.KeyState.RELEASED);
+            for (const key of keys)
+                keyboard.notify_key(time, key, Clutter.KeyState.PRESSED);
+            for (const key of [...keys].reverse())
+                keyboard.notify_key(time, key, Clutter.KeyState.RELEASED);
         } catch (error) {
             console.warn(`Clipboard Deck: direct paste unavailable: ${error.message}`);
             Main.notify('Clipboard Deck', 'Copied. Press Ctrl+V to paste.');
