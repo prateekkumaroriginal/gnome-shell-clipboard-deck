@@ -58,11 +58,15 @@ Always visible. Placeholder: “Search copied items or nicknames”. There is no
 
 ### History Item
 
-Shows a text preview or image thumbnail, optional searchable nickname, and pin state. Time metadata is omitted for active items. The nickname appears in warm accent text at the item’s top-left. A focused or hovered item shows hash, archive, and pin actions; an inactive pinned item shows only its pin; an inactive unpinned item shows no actions. Every item action uses the same 18 px hit target and centered 14 px symbolic icon, including a dedicated hash icon for nicknames. The rightmost pin uses one geometry, stroked when unpinned and solid-filled when pinned. The archive icon moves an item to the extension’s Trash. The subtle background appears only while a control is hovered or focused. All clickable controls use the pointing-hand cursor.
+Shows a text preview or image thumbnail, optional searchable nickname, and pin state. Time metadata is omitted for active items. The nickname appears in warm accent text at the item’s top-left. A focused or hovered item shows hash, archive, and pin actions; an inactive pinned item shows only its pin; an inactive unpinned item shows no actions. Every item action uses the same 18 px hit target and centered 14 px symbolic icon, including a dedicated hash icon for nicknames. The rightmost pin uses one geometry, stroked when unpinned and solid-filled when pinned. The archive-box icon moves an item to the extension’s Recycle Bin. Permanent deletion retains the trash-can icon so the two actions remain visually distinct. The subtle background appears only while a control is hovered or focused. Destructive hover states use a clear crimson treatment. All clickable controls use the pointing-hand cursor.
 
 ### Privacy Control
 
-Header icons toggle capture pause, open a ban-circle clear-history confirmation, restore all archived items, and open the extension’s Trash. Confirming clear archives all active history. Archiving does not change the system clipboard. Trash entries remain recoverable for seven days; they display their expiry and offer Restore or permanent Delete, after which their unreferenced saved image files are removed. Paused state changes icon, label, and empty-state copy so it is not communicated by color alone.
+Header icons open the Help guide, toggle capture pause, open a ban-circle clear-history confirmation, restore all archived items, and open the extension’s Recycle Bin. The Recycle Bin uses a bin-with-recycling-arrows icon rather than the permanent-delete trash can. Confirming clear archives all active history. Archiving does not change the system clipboard. Recycle Bin entries remain recoverable for seven days; they display their expiry and offer Restore or permanent Delete, after which their unreferenced saved image files are removed. Paused state changes icon, label, and empty-state copy so it is not communicated by color alone.
+
+### Help Guide
+
+The question-mark header control opens a compact attached panel. Its accent-yellow “Guide” title is followed by the supported keyboard shortcuts, a legend explaining every toolbar and item-action icon, and a local-storage privacy note. The panel appears beside the popup when space permits and overlays it on narrow monitors. `Escape` closes Help before it closes Clipboard Deck.
 
 ### Footer Hints
 

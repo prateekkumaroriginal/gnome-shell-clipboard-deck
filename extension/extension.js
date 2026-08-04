@@ -17,6 +17,8 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const IMAGE_CACHE_LIMIT = 250 * 1024 * 1024;
 const POPUP_WIDTH = 440;
 const POPUP_HEIGHT = 580;
+const HELP_PANEL_WIDTH = 300;
+const PANEL_GAP = 12;
 const SAVE_DELAY_MS = 250;
 const PASTE_DELAY_MS = 90;
 const PASTE_FOCUS_RETRIES = 5;
@@ -29,6 +31,16 @@ const IMAGE_MIME_TYPES = new Map([
     ['image/gif', 'gif'],
     ['image/bmp', 'bmp'],
 ]);
+const HELP_SHORTCUTS = [
+    [['Super', 'V'], 'Open Clipboard Deck'],
+    [['↑', '↓'], 'Move through history'],
+    [['Enter'], 'Paste selected item'],
+    [['Shift', 'Enter'], 'Copy without pasting'],
+    [['Ctrl', 'P'], 'Pin or unpin item'],
+    [['Ctrl', 'N'], 'Add or edit nickname'],
+    [['Delete'], 'Move item to Recycle Bin'],
+    [['Esc'], 'Close this panel or Deck'],
+];
 
 function compactPreview(text) {
     const compact = text.replace(/\s+/g, ' ').trim();
@@ -486,8 +498,10 @@ class ClipboardPopup {
         this._grab = null;
         this._caretSource = 0;
         this._caretVisible = false;
+        this._tooltipOwner = null;
         this._editingNicknameId = null;
         this._showTrash = false;
+        this._showHelp = false;
         this._build();
     }
 
@@ -512,8 +526,11 @@ class ClipboardPopup {
         this._editingNicknameId = null;
         this._nicknameEditor.visible = false;
         this._showTrash = false;
+        this._showHelp = false;
+        this._helpPanel.visible = false;
+        this._helpButton.checked = false;
         this._trashButton.checked = false;
-        this._trashButton.accessible_name = 'Show Trash';
+        this._trashButton.accessible_name = 'Show Recycle Bin';
         this._clearConfirmOverlay.visible = false;
         this._title.set_text('Clipboard Deck');
         this._search.set_text('');
@@ -559,9 +576,13 @@ class ClipboardPopup {
         }
         this._isOpen = false;
         this._editingNicknameId = null;
+        this._showHelp = false;
+        this._helpPanel.visible = false;
+        this._helpButton.checked = false;
         this._nicknameEditor.visible = false;
         this._clearConfirmOverlay.visible = false;
         this._nicknameEntry.clutter_text.set_cursor_visible(false);
+        this._hideTooltip();
         try {
             this._stopCaretBlink();
         } catch (error) {
@@ -589,6 +610,20 @@ class ClipboardPopup {
     refresh() {
         if (this._isOpen)
             this._render();
+    }
+
+    _extensionIcon(fileName, iconSize = 16, styleClass = null) {
+        return new St.Icon({
+            style_class: styleClass,
+            gicon: new Gio.FileIcon({
+                file: Gio.File.new_for_path(GLib.build_filenamev([
+                    this._extension.path,
+                    'icons',
+                    fileName,
+                ])),
+            }),
+            icon_size: iconSize,
+        });
     }
 
     _build() {
@@ -629,6 +664,21 @@ class ClipboardPopup {
         header.add_child(this._title);
         header.add_child(new St.Widget({x_expand: true}));
 
+        this._helpButton = new St.Button({
+            style_class: 'wc-help-button',
+            can_focus: true,
+            toggle_mode: true,
+            accessible_name: 'Show help',
+            child: this._extensionIcon('help-symbolic.svg'),
+        });
+        this._helpButton.connect('clicked', () =>
+            this._setHelpVisible(this._helpButton.checked));
+        this._usePointerCursor(this._helpButton);
+        this._addTooltip(this._helpButton, () => this._showHelp
+            ? 'Hide help'
+            : 'Show help');
+        header.add_child(this._helpButton);
+
         this._pauseButton = new St.Button({
             style_class: 'wc-pause-button',
             can_focus: true,
@@ -649,6 +699,9 @@ class ClipboardPopup {
             this._focusSearch();
         });
         this._usePointerCursor(this._pauseButton);
+        this._addTooltip(this._pauseButton, () => this._extension.paused
+            ? 'Resume clipboard capture'
+            : 'Pause clipboard capture');
         header.add_child(this._pauseButton);
 
         this._clearButton = new St.Button({
@@ -663,6 +716,7 @@ class ClipboardPopup {
         this._clearButton.connect('clicked', () =>
             this._showClearConfirmation());
         this._usePointerCursor(this._clearButton);
+        this._addTooltip(this._clearButton, 'Clear clipboard history');
         header.add_child(this._clearButton);
 
         this._restoreAllButton = new St.Button({
@@ -677,31 +731,33 @@ class ClipboardPopup {
         });
         this._restoreAllButton.connect('clicked', () => this._restoreAll());
         this._usePointerCursor(this._restoreAllButton);
+        this._addTooltip(this._restoreAllButton,
+            'Restore all archived items');
         header.add_child(this._restoreAllButton);
 
         this._trashButton = new St.Button({
             style_class: 'wc-trash-button',
             can_focus: true,
             toggle_mode: true,
-            accessible_name: 'Show Trash',
-            child: new St.Icon({
-                icon_name: 'user-trash-symbolic',
-                icon_size: 16,
-            }),
+            accessible_name: 'Show Recycle Bin',
+            child: this._extensionIcon('recycle-bin-symbolic.svg', 18),
         });
         this._trashButton.connect('clicked', () => {
             this._showTrash = this._trashButton.checked;
             this._trashButton.accessible_name = this._showTrash
                 ? 'Show clipboard history'
-                : 'Show Trash';
+                : 'Show Recycle Bin';
             this._title.set_text(this._showTrash
-                ? 'Clipboard Deck — Trash'
+                ? 'Clipboard Deck — Recycle Bin'
                 : 'Clipboard Deck');
             this._selectedIndex = 0;
             this._render();
             this._focusSearch();
         });
         this._usePointerCursor(this._trashButton);
+        this._addTooltip(this._trashButton, () => this._showTrash
+            ? 'Show clipboard history'
+            : 'Show Recycle Bin');
         header.add_child(this._trashButton);
         this._popup.add_child(header);
 
@@ -777,6 +833,9 @@ class ClipboardPopup {
         this._search.clutter_text.connect('key-press-event', (_actor, event) =>
             this._onKeyPress(event));
 
+        this._buildHelpPanel();
+        this._overlay.add_child(this._helpPanel);
+
         this._clearConfirmOverlay = new St.Widget({
             style_class: 'wc-confirm-overlay',
             reactive: true,
@@ -795,7 +854,7 @@ class ClipboardPopup {
         }));
         confirmDialog.add_child(new St.Label({
             style_class: 'wc-confirm-description',
-            text: 'All items will move to Trash and remain restorable for seven days.',
+            text: 'All items will move to Recycle Bin and remain restorable for seven days.',
         }));
         const confirmActions = new St.BoxLayout({
             style_class: 'wc-confirm-actions',
@@ -815,7 +874,7 @@ class ClipboardPopup {
             style_class: 'wc-confirm-delete',
             label: 'Delete',
             can_focus: true,
-            accessible_name: 'Delete clipboard history to Trash',
+            accessible_name: 'Delete clipboard history to Recycle Bin',
         });
         clearConfirmButton.connect('clicked', () =>
             this._confirmClearHistory());
@@ -825,25 +884,237 @@ class ClipboardPopup {
         this._clearConfirmOverlay.add_child(confirmDialog);
         this._overlay.add_child(this._clearConfirmOverlay);
 
+        this._tooltip = new St.Label({
+            style_class: 'wc-tooltip',
+            visible: false,
+        });
+        this._overlay.add_child(this._tooltip);
+
         Main.layoutManager.uiGroup.add_child(this._overlay);
+    }
+
+    _buildHelpPanel() {
+        this._helpPanel = new St.BoxLayout({
+            style_class: 'wc-help-panel',
+            vertical: true,
+            reactive: true,
+            visible: false,
+        });
+
+        const header = new St.BoxLayout({
+            style_class: 'wc-help-header',
+            x_expand: true,
+        });
+        header.add_child(new St.Label({
+            style_class: 'wc-help-title',
+            text: 'Guide',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        header.add_child(new St.Widget({x_expand: true}));
+        this._helpCloseButton = new St.Button({
+            style_class: 'wc-help-close',
+            can_focus: true,
+            accessible_name: 'Close help',
+            y_align: Clutter.ActorAlign.CENTER,
+            child: this._extensionIcon('close-symbolic.svg', 16),
+        });
+        this._helpCloseButton.connect('clicked', () =>
+            this._setHelpVisible(false));
+        this._usePointerCursor(this._helpCloseButton);
+        header.add_child(this._helpCloseButton);
+        this._helpPanel.add_child(header);
+        this._helpPanel.add_child(new St.Widget({
+            style_class: 'wc-help-separator',
+            x_expand: true,
+        }));
+
+        const scroll = new St.ScrollView({
+            style_class: 'wc-help-scroll',
+            overlay_scrollbars: false,
+            x_expand: true,
+            y_expand: true,
+        });
+        const content = new St.BoxLayout({
+            style_class: 'wc-help-content',
+            vertical: true,
+            x_expand: true,
+        });
+
+        content.add_child(new St.Label({
+            style_class: 'wc-help-section-title',
+            text: 'Keyboard shortcuts',
+        }));
+        const shortcuts = new St.BoxLayout({
+            style_class: 'wc-help-shortcuts',
+            vertical: true,
+            x_expand: true,
+        });
+        for (const [keys, description] of HELP_SHORTCUTS) {
+            const row = new St.BoxLayout({
+                style_class: 'wc-help-shortcut-row',
+                x_expand: true,
+            });
+            const keyGroup = new St.BoxLayout({
+                style_class: 'wc-help-shortcut-keys',
+            });
+            for (const key of keys) {
+                keyGroup.add_child(new St.Label({
+                    style_class: 'wc-help-key',
+                    text: key,
+                    y_align: Clutter.ActorAlign.CENTER,
+                }));
+            }
+            row.add_child(keyGroup);
+            row.add_child(new St.Label({
+                style_class: 'wc-help-shortcut-description',
+                text: description,
+                x_expand: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+            shortcuts.add_child(row);
+        }
+        content.add_child(shortcuts);
+
+        content.add_child(new St.Label({
+            style_class: 'wc-help-section-title wc-help-icons-title',
+            text: 'Icon meanings',
+        }));
+
+        const iconDefinitions = [
+            [this._extensionIcon('help-symbolic.svg', 14), 'Help', 'Open this guide'],
+            [new St.Icon({icon_name: 'media-playback-pause-symbolic', icon_size: 14}), 'Pause', 'Pause or resume capture'],
+            [new St.Icon({icon_name: 'action-unavailable-symbolic', icon_size: 14}), 'Clear', 'Move all history to Recycle Bin'],
+            [this._extensionIcon('recycle-bin-symbolic.svg', 14), 'Recycle Bin', 'Open archived items'],
+            [this._extensionIcon('archive-symbolic.svg', 14), 'Archive', 'Move an item to Recycle Bin'],
+            [new St.Icon({icon_name: 'document-revert-symbolic', icon_size: 14}), 'Restore', 'Restore archived items'],
+            [this._extensionIcon('hash-symbolic.svg', 14), 'Nickname', 'Add or edit a nickname'],
+            [createPinGlyph(true), 'Pin', 'Keep an item in history'],
+            [new St.Icon({icon_name: 'user-trash-symbolic', icon_size: 14}), 'Delete', 'Delete an item permanently'],
+        ];
+        const iconGuide = new St.BoxLayout({
+            style_class: 'wc-help-icon-guide',
+            vertical: true,
+            x_expand: true,
+        });
+        for (const definition of iconDefinitions)
+            iconGuide.add_child(this._createHelpIconCard(...definition));
+        content.add_child(iconGuide);
+
+        const privacy = new St.BoxLayout({
+            style_class: 'wc-help-privacy',
+            vertical: true,
+            x_expand: true,
+        });
+        privacy.add_child(new St.Label({
+            style_class: 'wc-help-privacy-title',
+            text: 'Private by design',
+        }));
+        const privacyDescription = new St.Label({
+            style_class: 'wc-help-privacy-description',
+            text: 'Your history stays on this device. Recycle Bin items are cleared after seven days.',
+            x_expand: true,
+        });
+        privacyDescription.clutter_text.line_wrap = true;
+        privacyDescription.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+        privacyDescription.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        privacy.add_child(privacyDescription);
+        content.add_child(privacy);
+
+        scroll.set_child(content);
+        this._helpPanel.add_child(scroll);
+    }
+
+    _createHelpIconCard(icon, title, description) {
+        const card = new St.BoxLayout({
+            style_class: 'wc-help-icon-card',
+            x_expand: true,
+        });
+        icon.x_align = Clutter.ActorAlign.CENTER;
+        icon.y_align = Clutter.ActorAlign.CENTER;
+        const iconSlot = new St.Widget({
+            style_class: 'wc-help-icon-slot',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            layout_manager: new Clutter.BinLayout(),
+        });
+        iconSlot.add_child(icon);
+        card.add_child(iconSlot);
+
+        const copy = new St.BoxLayout({
+            style_class: 'wc-help-icon-copy',
+            vertical: true,
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        copy.add_child(new St.Label({
+            style_class: 'wc-help-icon-name',
+            text: title,
+        }));
+        const descriptionLabel = new St.Label({
+            style_class: 'wc-help-icon-description',
+            text: description,
+            x_expand: true,
+        });
+        descriptionLabel.clutter_text.line_wrap = true;
+        descriptionLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+        descriptionLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        copy.add_child(descriptionLabel);
+        card.add_child(copy);
+        return card;
+    }
+
+    _setHelpVisible(visible) {
+        this._showHelp = Boolean(visible);
+        this._helpButton.checked = this._showHelp;
+        this._helpButton.accessible_name = this._showHelp
+            ? 'Hide help'
+            : 'Show help';
+        this._helpPanel.visible = this._showHelp;
+        this._position();
+
+        if (this._showHelp) {
+            this._stopCaretBlink();
+            global.stage.set_key_focus(this._helpCloseButton);
+        } else {
+            this._focusSearch();
+        }
     }
 
     _position() {
         const monitor = Main.layoutManager.currentMonitor ??
             Main.layoutManager.primaryMonitor;
+        const popupHeight = Math.min(
+            POPUP_HEIGHT,
+            Math.max(420, monitor.height - 96)
+        );
+        const popupY = Math.max(
+            48,
+            Math.round(monitor.height * 0.42 - POPUP_HEIGHT / 2)
+        );
+        const hasSideRoom = monitor.width >=
+            POPUP_WIDTH + PANEL_GAP + HELP_PANEL_WIDTH + 40;
+        let popupX = Math.round((monitor.width - POPUP_WIDTH) / 2);
+        let helpX = Math.round((monitor.width - HELP_PANEL_WIDTH) / 2);
+        let helpWidth = HELP_PANEL_WIDTH;
+
+        if (this._showHelp && hasSideRoom) {
+            const groupWidth = POPUP_WIDTH + PANEL_GAP + HELP_PANEL_WIDTH;
+            popupX = Math.round((monitor.width - groupWidth) / 2);
+            helpX = popupX + POPUP_WIDTH + PANEL_GAP;
+        } else if (this._showHelp) {
+            helpWidth = Math.min(POPUP_WIDTH, monitor.width - 20);
+            helpX = Math.round((monitor.width - helpWidth) / 2);
+        }
+
         this._overlay.set_position(monitor.x, monitor.y);
         this._overlay.set_size(monitor.width, monitor.height);
         this._backdrop.set_size(monitor.width, monitor.height);
         this._clearConfirmOverlay.set_position(0, 0);
         this._clearConfirmOverlay.set_size(monitor.width, monitor.height);
-        this._popup.set_position(
-            Math.round((monitor.width - POPUP_WIDTH) / 2),
-            Math.max(48, Math.round(monitor.height * 0.42 - POPUP_HEIGHT / 2))
-        );
-        this._popup.set_size(POPUP_WIDTH, Math.min(
-            POPUP_HEIGHT,
-            Math.max(420, monitor.height - 96)
-        ));
+        this._popup.set_position(popupX, popupY);
+        this._popup.set_size(POPUP_WIDTH, popupHeight);
+        this._helpPanel.set_position(helpX, popupY);
+        this._helpPanel.set_size(helpWidth, popupHeight);
     }
 
     _render() {
@@ -878,7 +1149,7 @@ class ClipboardPopup {
             const text = this._showTrash
                 ? query
                     ? 'No archived items match this search.'
-                    : 'Trash is empty. Archived items stay here for seven days.'
+                    : 'Recycle Bin is empty. Archived items stay here for seven days.'
                 : this._extension.paused
                 ? 'Capture is paused. Your saved history is still available after you resume.'
                 : query
@@ -1058,6 +1329,9 @@ class ClipboardPopup {
         });
         nicknameButton.connect('clicked', () => this._startNicknameEdit(item));
         this._usePointerCursor(nicknameButton);
+        this._addTooltip(nicknameButton, () => item.nickname
+            ? 'Edit nickname'
+            : 'Add nickname');
         row.add_child(nicknameButton);
 
         const pinIcon = createPinGlyph(item.pinned);
@@ -1078,21 +1352,25 @@ class ClipboardPopup {
             this._focusSearch();
         });
         this._usePointerCursor(pinButton);
+        this._addTooltip(pinButton, () => item.pinned
+            ? 'Unpin item'
+            : 'Pin item');
 
         const archiveButton = new St.Button({
             style_class: 'wc-item-action wc-delete',
             can_focus: false,
-            accessible_name: 'Archive item to Trash',
+            accessible_name: 'Archive item to Recycle Bin',
             y_align: Clutter.ActorAlign.START,
             visible: index === this._selectedIndex,
-            child: centerActionGlyph(new St.Icon({
-                style_class: 'wc-item-action-icon',
-                icon_name: 'user-trash-symbolic',
-                icon_size: 14,
-            })),
+            child: centerActionGlyph(this._extensionIcon(
+                'archive-symbolic.svg',
+                14,
+                'wc-item-action-icon'
+            )),
         });
         archiveButton.connect('clicked', () => this._archiveItem(item));
         this._usePointerCursor(archiveButton);
+        this._addTooltip(archiveButton, 'Archive to Recycle Bin');
         row.add_child(archiveButton);
         row.add_child(pinButton);
 
@@ -1114,6 +1392,7 @@ class ClipboardPopup {
         });
         restoreButton.connect('clicked', () => this._restoreItem(item));
         this._usePointerCursor(restoreButton);
+        this._addTooltip(restoreButton, 'Restore item');
         row.add_child(restoreButton);
 
         const deleteButton = new St.Button({
@@ -1130,6 +1409,7 @@ class ClipboardPopup {
         });
         deleteButton.connect('clicked', () => this._deleteArchivedItem(item));
         this._usePointerCursor(deleteButton);
+        this._addTooltip(deleteButton, 'Delete permanently');
         row.add_child(deleteButton);
 
         return {restoreButton, deleteButton};
@@ -1148,6 +1428,58 @@ class ClipboardPopup {
             ? 'Deletes today'
             : `Deletes in ${remainingDays} day${remainingDays === 1 ? '' : 's'}`;
         return `${archivedText} · ${expiryText}`;
+    }
+
+    _addTooltip(actor, text) {
+        actor.connect('notify::hover', () => {
+            if (!actor.hover) {
+                if (this._tooltipOwner === actor)
+                    this._hideTooltip();
+                return;
+            }
+
+            this._hideTooltip();
+            this._tooltipOwner = actor;
+            if (!this._isOpen || !this._tooltip)
+                return;
+
+            const label = typeof text === 'function' ? text() : text;
+            this._showTooltip(actor, label);
+        });
+        actor.connect('destroy', () => {
+            if (this._tooltipOwner === actor)
+                this._hideTooltip();
+        });
+    }
+
+    _showTooltip(actor, text) {
+        if (!text)
+            return;
+
+        this._tooltip.set_text(text);
+        this._tooltip.visible = true;
+        const [actorX, actorY] = actor.get_transformed_position();
+        const [actorWidth, actorHeight] = actor.get_transformed_size();
+        const [overlayX, overlayY] = this._overlay.get_transformed_position();
+        const [, naturalWidth] = this._tooltip.get_preferred_width(-1);
+        const [, naturalHeight] = this._tooltip.get_preferred_height(naturalWidth);
+        const maxX = Math.max(8, this._overlay.width - naturalWidth - 8);
+        const x = Math.min(
+            maxX,
+            Math.max(8, Math.round(
+                actorX - overlayX + actorWidth / 2 - naturalWidth / 2
+            ))
+        );
+        let y = Math.round(actorY - overlayY + actorHeight + 8);
+        if (y + naturalHeight > this._overlay.height - 8)
+            y = Math.round(actorY - overlayY - naturalHeight - 8);
+        this._tooltip.set_position(x, y);
+    }
+
+    _hideTooltip() {
+        this._tooltipOwner = null;
+        if (this._tooltip)
+            this._tooltip.visible = false;
     }
 
     _usePointerCursor(actor) {
@@ -1313,6 +1645,10 @@ class ClipboardPopup {
         if (symbol === Clutter.KEY_Escape) {
             if (this._clearConfirmOverlay.visible) {
                 this._hideClearConfirmation();
+                return Clutter.EVENT_STOP;
+            }
+            if (this._showHelp) {
+                this._setHelpVisible(false);
                 return Clutter.EVENT_STOP;
             }
             this.close();

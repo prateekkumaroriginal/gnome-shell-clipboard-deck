@@ -77,6 +77,8 @@ function cx(...classes) {
 function Icon({name, className = 'size-4'}) {
     const paths = {
         clipboard: <><path d="M8.5 5.5h7M9 3h6a1 1 0 0 1 1 1v3H8V4a1 1 0 0 1 1-1Z"/><path d="M6 6h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/><path d="M8 11h8M8 15h5"/></>,
+        help: <><circle cx="12" cy="12" r="9"/><path d="M9.7 9.1a2.45 2.45 0 0 1 4.7.9c0 1.8-2.4 2.1-2.4 3.7"/><path d="M12 17.2h.01"/></>,
+        close: <><path d="m7 7 10 10M17 7 7 17"/></>,
     };
 
     return (
@@ -95,10 +97,74 @@ function Icon({name, className = 'size-4'}) {
     );
 }
 
+const HELP_SHORTCUTS = [
+    ['Super V', 'Open Clipboard Deck'],
+    ['↑  ↓', 'Move through history'],
+    ['Enter', 'Paste selected item'],
+    ['Shift Enter', 'Copy without pasting'],
+    ['Ctrl P', 'Pin or unpin item'],
+    ['Ctrl N', 'Add or edit nickname'],
+    ['Delete', 'Move item to Recycle Bin'],
+    ['Esc', 'Close this panel or Deck'],
+];
+
+function HelpPanel({open, onClose}) {
+    return (
+        <aside
+            className={cx('help-panel', open && 'is-open')}
+            aria-label="Clipboard Deck help"
+            aria-hidden={!open}
+        >
+            <header className="help-panel-header">
+                <h2>Guide</h2>
+                <button type="button" className="help-close" aria-label="Close help" onClick={onClose}>
+                    <Icon name="close" className="size-4" />
+                </button>
+            </header>
+            <div className="help-separator" aria-hidden="true" />
+
+            <div className="help-scroll">
+                <section className="help-section" aria-labelledby="shortcuts-title">
+                    <h3 id="shortcuts-title">Keyboard shortcuts</h3>
+                    <dl className="shortcut-list">
+                        {HELP_SHORTCUTS.map(([keys, description]) => (
+                            <div key={keys}>
+                                <dt>{keys.split(' ').filter(Boolean).map((key, index) => <kbd key={`${key}-${index}`}>{key}</kbd>)}</dt>
+                                <dd>{description}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                </section>
+
+                <section className="help-section icon-help-section" aria-labelledby="icons-title">
+                    <h3 id="icons-title">Icon meanings</h3>
+                    <dl className="icon-guide">
+                        <div><dt><Icon name="help" /></dt><dd><strong>Help</strong><span>Open this guide</span></dd></div>
+                        <div><dt><SymbolicIcon name="pause" /></dt><dd><strong>Pause</strong><span>Pause or resume capture</span></dd></div>
+                        <div><dt><SymbolicIcon name="clear" /></dt><dd><strong>Clear</strong><span>Move all history to Recycle Bin</span></dd></div>
+                        <div><dt><SymbolicIcon name="recycle" /></dt><dd><strong>Recycle Bin</strong><span>Open archived items</span></dd></div>
+                        <div><dt><SymbolicIcon name="archive" /></dt><dd><strong>Archive</strong><span>Move an item to Recycle Bin</span></dd></div>
+                        <div><dt><SymbolicIcon name="restore" /></dt><dd><strong>Restore</strong><span>Restore all archived items</span></dd></div>
+                        <div><dt><SymbolicIcon name="hash" /></dt><dd><strong>Nickname</strong><span>Add or edit a nickname</span></dd></div>
+                        <div><dt><PinIcon filled /></dt><dd><strong>Pin</strong><span>Keep an item in history</span></dd></div>
+                        <div><dt><SymbolicIcon name="trash" /></dt><dd><strong>Delete</strong><span>Delete an item permanently</span></dd></div>
+                    </dl>
+                </section>
+
+                <section className="help-privacy">
+                    <p><strong>Private by design</strong>Your history stays on this device. Recycle Bin items are cleared after seven days.</p>
+                </section>
+            </div>
+        </aside>
+    );
+}
+
 function SymbolicIcon({name, className = 'size-4'}) {
     const paths = {
         pause: <path d="M3 3v10h4V3zm6 0v10h4V3z" />,
         clear: <path d="M8 0C3.588 0 0 3.588 0 8s3.588 8 8 8 8-3.588 8-8-3.588-8-8-8zm0 1c3.872 0 7 3.128 7 7a6.968 6.968 0 0 1-1.71 4.582L3.417 2.711A6.968 6.968 0 0 1 8 1zM2.711 3.418l9.871 9.871A6.968 6.968 0 0 1 8 15c-3.872 0-7-3.128-7-7 0-1.756.647-3.355 1.711-4.582z" />,
+        archive: <><path d="M1 2h14v3H1z"/><path d="M2 6h12v8H2z"/><path d="M6 8h4v1.5H6z"/></>,
+        recycle: <><path d="M3.4 5.2h9.2l-.7 8.2a1 1 0 0 1-1 .9H5.1a1 1 0 0 1-1-.9l-.7-8.2ZM5 1.7h6l.7 1.7H13v1H3v-1h1.3L5 1.7Z" fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinejoin="round"/><path d="M6.1 9.2A2.15 2.15 0 0 1 9.7 8.1l.55.65M9.9 11.4a2.15 2.15 0 0 1-3.6 1.05l-.55-.65" fill="none" stroke="currentColor" strokeWidth="1.05" strokeLinecap="round"/><path d="m9.55 7.45 1.15 1.35-1.75.2M6.45 13.1 5.3 11.75l1.75-.2"/></>,
         trash: <path d="M7.5 0C6.4 0 5.355.32 5.355.32L5 .428v1.683A13.88 13.88 0 0 0 2.002 3L2 4H1v1h1l.004 9c0 .439.04.788.15 1.082.111.294.311.528.563.668.503.28 1.12.25 1.953.25h5.664c.833 0 1.45.03 1.953-.25.252-.14.45-.374.56-.668.11-.294.153-.643.153-1.082l-.002-8h-1L12 14c0 .376-.04.603-.088.729-.034.09-.078.129-.11.146-.173.097-.611.125-1.468.125H4.67c-.857 0-1.295-.028-1.469-.125a.267.267 0 0 1-.113-.146v-.002c-.046-.122-.084-.348-.084-.727v-.002L3 5h11V4h-1.002L13 3a13.855 13.855 0 0 0-3-.889V.45L9.67.331S8.757.001 7.5.001zm0 1c.89 0 1.29.155 1.5.22v.739a14.05 14.05 0 0 0-1.498-.084c-.502 0-1.003.032-1.502.086v-.734C6.266 1.157 6.772 1 7.5 1zM5 6v6h1V6zm2 0v6h1V6zm2 0v6h1V6z" />,
         restore: <><path d="M8 3v5a36.973 36.973 0 0 1-2.324-1.166A44.09 44.09 0 0 1 3.417 5.5a52.149 52.149 0 0 1 2.26-1.32A43.18 43.18 0 0 1 8 3z"/><path d="M7 5v1h4.5C12.894 6 14 7.106 14 8.5S12.894 11 11.5 11H1v1h10.5c1.93 0 3.5-1.57 3.5-3.5S13.43 5 11.5 5h-4z"/></>,
         undo: <><path d="M6.983 3v5a36.973 36.973 0 0 1-2.324-1.166A44.09 44.09 0 0 1 2.4 5.5a52.149 52.149 0 0 1 2.26-1.32A43.18 43.18 0 0 1 6.983 3z"/><path d="M5.983 5v1h4.5c1.394 0 2.5 1.106 2.5 2.5s-1.106 2.5-2.5 2.5h-3.5v1h3.5c1.93 0 3.5-1.57 3.5-3.5s-1.57-3.5-3.5-3.5h-4z"/></>,
@@ -108,18 +174,20 @@ function SymbolicIcon({name, className = 'size-4'}) {
     return <svg viewBox="0 0 16 16" className={className} fill="currentColor" aria-hidden="true">{paths[name]}</svg>;
 }
 
-function ToolbarButton({label, pressed, disabled, onClick, children}) {
+function ToolbarButton({label, pressed, darkWhenPressed = false, disabled, onClick, children}) {
     return (
         <button
             type="button"
             className={cx(
                 'grid size-8 shrink-0 place-items-center rounded-lg border-0 p-[7px]',
                 'bg-[#2b2e37] text-[#d7d8df]',
-                'hover:bg-[#363a45] hover:text-white focus-visible:bg-[#363a45] focus-visible:text-white focus-visible:outline-0',
-                pressed && '!bg-[var(--popup-accent)] !text-[#211a0e]',
+                'hover:bg-[#363a45] focus-visible:bg-[#363a45] focus-visible:outline-0',
+                pressed && '!bg-[var(--popup-accent)]',
+                pressed && darkWhenPressed && '!text-[#211a0e]',
                 disabled && 'cursor-default opacity-40'
             )}
             aria-label={label}
+            title={label}
             aria-pressed={pressed}
             disabled={disabled}
             onClick={onClick}
@@ -152,13 +220,14 @@ function ActionButton({label, danger, visible, active, onClick, children}) {
                 'size-[18px] place-items-center rounded-[5px] border-0 bg-transparent p-0',
                 'text-[#abadb7]',
                 danger
-                    ? 'hover:bg-[#4a3032] hover:text-[#ffb4ae] focus-visible:bg-[#4a3032] focus-visible:text-[#ffb4ae]'
+                    ? 'hover:bg-[#66282f] hover:text-[#ffc1bc] focus-visible:bg-[#66282f] focus-visible:text-[#ffc1bc]'
                     : 'hover:bg-[#403a2e] hover:text-[#e7aa3d] focus-visible:bg-[#403a2e] focus-visible:text-[#e7aa3d]',
                 'focus-visible:outline-0',
                 active && 'text-[color:var(--popup-accent)]',
                 visible ? 'grid' : 'hidden group-hover:grid'
             )}
             aria-label={label}
+            title={label}
             onClick={event => {
                 event.stopPropagation();
                 onClick();
@@ -246,8 +315,8 @@ function HistoryItem({item, selected, archived, onPaste, onNickname, onPin, onAr
                         <ActionButton label={item.nickname ? 'Edit nickname' : 'Add nickname'} visible={selected} active={Boolean(item.nickname)} onClick={onNickname}>
                             <SymbolicIcon name="hash" className="size-3.5" />
                         </ActionButton>
-                        <ActionButton label="Archive item to Trash" danger visible={selected} onClick={onArchive}>
-                            <SymbolicIcon name="trash" className="size-3.5" />
+                        <ActionButton label="Archive item to Recycle Bin" danger visible={selected} onClick={onArchive}>
+                            <SymbolicIcon name="archive" className="size-3.5" />
                         </ActionButton>
                         <ActionButton label={item.pinned ? 'Unpin item' : 'Pin item'} visible={selected || item.pinned} active={item.pinned} onClick={onPin}>
                             <PinIcon filled={item.pinned} />
@@ -262,7 +331,7 @@ function HistoryItem({item, selected, archived, onPaste, onNickname, onPin, onAr
 function EmptyState({view, paused, hasQuery}) {
     let text;
     if (view === 'trash')
-        text = hasQuery ? 'No archived items match this search.' : 'Trash is empty. Archived items stay here for seven days.';
+        text = hasQuery ? 'No archived items match this search.' : 'Recycle Bin is empty. Archived items stay here for seven days.';
     else if (paused)
         text = 'Capture is paused. Your saved history is still available after you resume.';
     else if (hasQuery)
@@ -283,7 +352,7 @@ function ConfirmDialog({onCancel, onConfirm}) {
             <section role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" className="flex w-80 flex-col gap-3 rounded-xl border border-[#4a4d58] bg-[#24262e] p-[18px] text-[#f2f2f6] shadow-[0_12px_30px_rgba(0,0,0,0.5)]">
                 <h3 id="confirm-title" className="m-0 text-base font-bold">Clear clipboard history?</h3>
                 <p className="m-0 text-[13px] text-[#c5c6ce]">
-                    All items will move to Trash and remain restorable for seven days.
+                    All items will move to Recycle Bin and remain restorable for seven days.
                 </p>
                 <div className="flex justify-end gap-2">
                     <button autoFocus type="button" onClick={onCancel} className="rounded-[7px] border-0 bg-[#343741] px-3 py-1.5 text-[13px] font-semibold hover:bg-[#414550] focus-visible:bg-[#414550] focus-visible:outline-0">Cancel</button>
@@ -296,6 +365,7 @@ function ConfirmDialog({onCancel, onConfirm}) {
 
 export default function App() {
     const [open, setOpen] = useState(true);
+    const [helpOpen, setHelpOpen] = useState(false);
     const [view, setView] = useState('history');
     const [paused, setPaused] = useState(false);
     const [query, setQuery] = useState('');
@@ -348,6 +418,7 @@ export default function App() {
 
     function openPopup() {
         setOpen(true);
+        setHelpOpen(false);
         setView('history');
         setQuery('');
         setSelected(0);
@@ -358,6 +429,7 @@ export default function App() {
 
     function closePopup() {
         setOpen(false);
+        setHelpOpen(false);
         setConfirming(false);
         setEditingId(null);
     }
@@ -391,7 +463,7 @@ export default function App() {
             return;
         setItems(current => current.filter(candidate => candidate.id !== id));
         setTrash(current => [{...item, deletedAt: Date.now()}, ...current]);
-        notify('Moved to Trash · Restorable for 7 days');
+        notify('Moved to Recycle Bin · Restorable for 7 days');
         focusSearch();
     }
 
@@ -431,7 +503,7 @@ export default function App() {
         setItems([]);
         setConfirming(false);
         setSelected(-1);
-        notify('History moved to Trash');
+        notify('History moved to Recycle Bin');
         focusSearch();
     }
 
@@ -468,6 +540,13 @@ export default function App() {
                     setConfirming(false);
                     focusSearch();
                 }
+                return;
+            }
+
+            if (helpOpen && event.key === 'Escape') {
+                event.preventDefault();
+                setHelpOpen(false);
+                focusSearch();
                 return;
             }
 
@@ -514,7 +593,7 @@ export default function App() {
     return (
         <main className="min-h-screen bg-[var(--lab-bg)] text-[color:var(--lab-text)]">
             <section aria-label="Clipboard Deck preview canvas" className="min-w-0">
-                <div className={cx('desktop', open && 'has-popup')}>
+                <div className={cx('desktop', open && 'has-popup', helpOpen && 'has-help')}>
                         <div className="mock-workspace" aria-label="Mock application behind the popup">
                             <div className="mock-document">
                                 <span className="line-number">1</span><strong>Launch notes</strong>
@@ -529,15 +608,16 @@ export default function App() {
 
                         <section className={cx('clipboard-popup', open && 'is-open', editingId && 'has-nickname-editor')} aria-label="Clipboard Deck popup preview" aria-hidden={!open}>
                             <header className="flex h-[34px] items-center gap-2">
-                                <h2 className="m-0 min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold">{view === 'trash' ? 'Clipboard Deck — Trash' : 'Clipboard Deck'}</h2>
+                                <h2 className="m-0 min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold">{view === 'trash' ? 'Clipboard Deck — Recycle Bin' : 'Clipboard Deck'}</h2>
                                 <div className="flex items-center gap-2">
-                                    <ToolbarButton label={paused ? 'Resume clipboard capture' : 'Pause clipboard capture'} pressed={paused} onClick={() => { setPaused(value => !value); setSelected(0); focusSearch(); }}><SymbolicIcon name="pause" /></ToolbarButton>
+                                    <ToolbarButton label="Show help" pressed={helpOpen} onClick={() => setHelpOpen(value => !value)}><Icon name="help" /></ToolbarButton>
+                                    <ToolbarButton label={paused ? 'Resume clipboard capture' : 'Pause clipboard capture'} pressed={paused} darkWhenPressed onClick={() => { setPaused(value => !value); setSelected(0); focusSearch(); }}><SymbolicIcon name="pause" /></ToolbarButton>
                                     {view === 'history' ? (
                                         <ToolbarButton label="Clear clipboard history" disabled={items.length === 0} onClick={() => setConfirming(true)}><SymbolicIcon name="clear" /></ToolbarButton>
                                     ) : (
                                         <ToolbarButton label="Restore all archived items" disabled={trash.length === 0} onClick={restoreAll}><SymbolicIcon name="restore" /></ToolbarButton>
                                     )}
-                                    <ToolbarButton label={view === 'trash' ? 'Show clipboard history' : 'Show Trash'} pressed={view === 'trash'} onClick={() => selectView(view === 'trash' ? 'history' : 'trash')}><SymbolicIcon name="trash" /></ToolbarButton>
+                                    <ToolbarButton label={view === 'trash' ? 'Show clipboard history' : 'Show Recycle Bin'} pressed={view === 'trash'} onClick={() => selectView(view === 'trash' ? 'history' : 'trash')}><SymbolicIcon name="recycle" className="size-[18px]" /></ToolbarButton>
                                 </div>
                             </header>
 
@@ -581,6 +661,8 @@ export default function App() {
                                 <span>Esc&nbsp; Close</span>
                             </footer>
                         </section>
+
+                        <HelpPanel open={open && helpOpen} onClose={() => { setHelpOpen(false); focusSearch(); }} />
 
                         {confirming && <ConfirmDialog onCancel={() => { setConfirming(false); focusSearch(); }} onConfirm={confirmClear} />}
 
