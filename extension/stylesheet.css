@@ -30,7 +30,10 @@
   font-weight: 700;
 }
 
-.wc-pause-button {
+.wc-pause-button,
+.wc-clear-button,
+.wc-restore-all-button,
+.wc-trash-button {
   width: 32px;
   height: 32px;
   padding: 7px;
@@ -40,12 +43,23 @@
 }
 
 .wc-pause-button:hover,
-.wc-pause-button:focus {
+.wc-pause-button:focus,
+.wc-clear-button:hover,
+.wc-clear-button:focus,
+.wc-restore-all-button:hover,
+.wc-restore-all-button:focus,
+.wc-trash-button:hover,
+.wc-trash-button:focus {
   color: #ffffff;
   background-color: #363a45;
 }
 
 .wc-pause-button:checked {
+  color: #211a0e;
+  background-color: #e7aa3d;
+}
+
+.wc-trash-button:checked {
   color: #211a0e;
   background-color: #e7aa3d;
 }
@@ -82,6 +96,7 @@
 .wc-item {
   min-height: 64px;
   padding: 10px 10px 10px 12px;
+  spacing: 8px;
   color: #f2f2f6;
   background-color: #2b2e37;
   border: 2px solid transparent;
@@ -97,16 +112,20 @@
   border-color: #e7aa3d;
 }
 
-.wc-item-hit-target {
-  margin: -12px -12px -12px -14px;
+.wc-item-archived {
+  background-color: #272a31;
+}
+
+.wc-item-archived:hover {
+  background-color: #30333b;
+}
+
+.wc-item-main {
   padding: 0;
+  color: inherit;
   background-color: transparent;
   border: none;
   box-shadow: none;
-}
-
-.wc-item-layout {
-  spacing: 8px;
 }
 
 .wc-item-content {
@@ -137,16 +156,32 @@
   font-weight: 500;
 }
 
-.wc-tag {
+.wc-expiry {
+  color: #abadb7;
+  font-size: 11px;
+}
+
+.wc-item-action {
   width: 18px;
   height: 18px;
   padding: 0;
   margin: 0;
-  color: #abadb7;
   background-color: transparent;
   border-radius: 5px;
-  font-size: 14px;
-  font-weight: 700;
+}
+
+.wc-item-action-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.wc-item-action-slot {
+  width: 18px;
+  height: 18px;
+}
+
+.wc-tag {
+  color: #abadb7;
 }
 
 .wc-tagged {
@@ -202,13 +237,7 @@
 }
 
 .wc-pin {
-  width: 18px;
-  height: 18px;
-  padding: 1px;
-  margin: 0;
   color: #abadb7;
-  background-color: transparent;
-  border-radius: 5px;
 }
 
 .wc-pin:checked {
@@ -222,6 +251,80 @@
 .wc-pin:checked:focus {
   color: #e7aa3d;
   background-color: #403a2e;
+}
+
+.wc-delete,
+.wc-restore {
+  color: #abadb7;
+}
+
+.wc-delete:hover,
+.wc-delete:focus {
+  color: #ffb4ae;
+  background-color: #4a3032;
+}
+
+.wc-restore:hover,
+.wc-restore:focus {
+  color: #e7aa3d;
+  background-color: #403a2e;
+}
+
+.wc-confirm-overlay {
+  background-color: rgba(7, 7, 10, 0.72);
+}
+
+.wc-confirm-dialog {
+  width: 320px;
+  padding: 18px;
+  spacing: 12px;
+  color: #f2f2f6;
+  background-color: #24262e;
+  border: 1px solid #4a4d58;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.wc-confirm-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.wc-confirm-description {
+  color: #c5c6ce;
+  font-size: 13px;
+}
+
+.wc-confirm-actions {
+  spacing: 8px;
+}
+
+.wc-confirm-cancel,
+.wc-confirm-delete {
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wc-confirm-cancel {
+  color: #f2f2f6;
+  background-color: #343741;
+}
+
+.wc-confirm-cancel:hover,
+.wc-confirm-cancel:focus {
+  background-color: #414550;
+}
+
+.wc-confirm-delete {
+  color: #2b1111;
+  background-color: #ffb4ae;
+}
+
+.wc-confirm-delete:hover,
+.wc-confirm-delete:focus {
+  background-color: #ffc6c1;
 }
 
 .wc-empty {

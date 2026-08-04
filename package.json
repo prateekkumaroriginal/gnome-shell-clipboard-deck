@@ -1,0 +1,20 @@
+{
+  "name": "clipboard-deck",
+  "private": true,
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "validate": "make validate",
+    "pack": "make pack",
+    "reload": "bash scripts/reload-extension.sh",
+    "preview": "vite --config web-preview/vite.config.mjs",
+    "preview:build": "vite build --config web-preview/vite.config.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.0.5",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.0"
+  }
+}

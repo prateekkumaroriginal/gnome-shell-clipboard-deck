@@ -58,11 +58,11 @@ Always visible. Placeholder: “Search copied items or nicknames”. There is no
 
 ### History Item
 
-Shows a text preview or image thumbnail, optional searchable nickname, and pin state. Time metadata is omitted. The nickname appears in warm accent text at the item’s top-left. A focused item shows both actions; hovering an unpinned item also shows both, while a pinned but unfocused item shows only its pin. The pin is a 14 px, 45-degree tilted glyph in the top-right corner inside an unchanged 18 px hit target. It is outlined when unpinned and filled with the warm accent when pinned. The subtle background appears only while a control is hovered or focused. All clickable controls use the pointing-hand cursor. States: default, hover, keyboard-selected, nicknamed, pinned, and delete-confirmation.
+Shows a text preview or image thumbnail, optional searchable nickname, and pin state. Time metadata is omitted for active items. The nickname appears in warm accent text at the item’s top-left. A focused or hovered item shows hash, archive, and pin actions; an inactive pinned item shows only its pin; an inactive unpinned item shows no actions. Every item action uses the same 18 px hit target and centered 14 px symbolic icon, including a dedicated hash icon for nicknames. The rightmost pin uses one geometry, stroked when unpinned and solid-filled when pinned. The archive icon moves an item to the extension’s Trash. The subtle background appears only while a control is hovered or focused. All clickable controls use the pointing-hand cursor.
 
 ### Privacy Control
 
-A header icon toggles capture pause. Paused state changes icon, label, and empty-state copy so it is not communicated by color alone.
+Header icons toggle capture pause, open a ban-circle clear-history confirmation, restore all archived items, and open the extension’s Trash. Confirming clear archives all active history. Archiving does not change the system clipboard. Trash entries remain recoverable for seven days; they display their expiry and offer Restore or permanent Delete, after which their unreferenced saved image files are removed. Paused state changes icon, label, and empty-state copy so it is not communicated by color alone.
 
 ### Footer Hints
 

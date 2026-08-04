@@ -14,9 +14,9 @@ compact Windows-inspired interface.
 - Press `Shift+Enter` to copy without direct paste.
 - Press `Ctrl+P` to pin or unpin an entry.
 - Press `Ctrl+N` to add, edit, or clear the selected entry's nickname.
-- Press `Delete` to remove the selected entry.
+- Archive an entry with its uniformly sized trash icon or `Delete`; archived entries can be restored individually or all at once from Trash for seven days.
 - Press `Escape` to close the popup.
-- Pause clipboard capture from the popup header.
+- Pause capture, clear history after confirmation, restore all archived entries, or open the extension's Trash from the popup header. Clearing moves entries to Trash and none of these controls clear the system clipboard.
 
 ## Set the shortcut
 
@@ -74,8 +74,29 @@ Install the resulting bundle locally:
 make install
 ```
 
-On Wayland, a newly installed UUID may require logging out and back in before
-GNOME Shell discovers it.
+During extension development, use this command instead. It packages, installs, and
+reloads the extension so the active Shell copy cannot go stale:
+
+```bash
+pnpm reload
+```
+
+It requires the same local build tools plus `pnpm`.
+
+## Web design lab
+
+The development-only React and Tailwind CSS v4 design lab makes it faster to
+explore the popup's layout, visual states, and mocked interaction feedback in a
+browser. Install its dependencies and start the Vite development server:
+
+```bash
+pnpm install
+pnpm preview
+```
+
+Vite prints the local URL to open. The design lab lives in `web-preview/` and is
+not part of the GNOME extension. `make pack` also verifies that HTML, package
+metadata, dependencies, and web preview files are absent from the uploadable ZIP.
 
 ## Install a GitHub release
 
@@ -96,6 +117,7 @@ the Extensions app, and choose the shortcut in Preferences.
 - `extension/extension.js`: clipboard capture, local history, popup, and shortcut
 - `extension/prefs.js`: explicit shortcut and privacy preferences
 - `extension/stylesheet.css`: GNOME Shell presentation
+- `web-preview/`: development-only React and Tailwind CSS v4 design lab
 - `extension/schemas/`: GSettings schema
 - `PRODUCT.md` and `DESIGN.md`: product and visual contracts
 

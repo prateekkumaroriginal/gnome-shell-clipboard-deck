@@ -1,2 +1,4 @@
 dist/
+node_modules/
+.htmls/
 extension/schemas/gschemas.compiled
