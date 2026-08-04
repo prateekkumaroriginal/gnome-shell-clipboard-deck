@@ -14,9 +14,9 @@ compact Windows-inspired interface.
 - Press `Shift+Enter` to copy without direct paste.
 - Press `Ctrl+P` to pin or unpin an entry.
 - Press `Ctrl+N` to add, edit, or clear the selected entry's nickname.
-- Press `Delete` to remove the selected entry.
+- Archive an entry with its uniformly sized trash icon or `Delete`; archived entries can be restored individually or all at once from Trash for seven days.
 - Press `Escape` to close the popup.
-- Pause clipboard capture from the popup header.
+- Pause capture, clear history after confirmation, restore all archived entries, or open the extension's Trash from the popup header. Clearing moves entries to Trash and none of these controls clear the system clipboard.
 
 ## Set the shortcut
 
