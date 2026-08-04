@@ -178,6 +178,17 @@ function expiryLabel(item) {
 }
 
 function HistoryItem({item, selected, archived, onPaste, onNickname, onPin, onArchive, onRestore, onDelete}) {
+    const nicknameElement = item.nickname && (
+        <div className="mb-[3px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium leading-tight text-[color:var(--popup-accent)]">
+            {item.nickname}
+        </div>
+    );
+    const expiryElement = archived && (
+        <div className="mb-[3px] text-[11px] leading-tight text-[color:var(--popup-muted)]">
+            {expiryLabel(item)}
+        </div>
+    );
+
     return (
         <div
             role="option"
@@ -196,22 +207,28 @@ function HistoryItem({item, selected, archived, onPaste, onNickname, onPin, onAr
             }}
         >
             <div className="min-w-0 flex-1">
-                {item.nickname && (
-                    <div className="mb-[3px] overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium leading-tight text-[color:var(--popup-accent)]">
-                        {item.nickname}
+                {item.type === 'image' ? (
+                    <div className="flex min-w-0 items-center gap-3">
+                        <span className="mock-thumbnail" aria-label="Screenshot thumbnail" />
+                        <div className="min-w-0 flex-1">
+                            {nicknameElement}
+                            {expiryElement}
+                            <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold">
+                                {item.text}
+                            </span>
+                        </div>
                     </div>
+                ) : (
+                    <>
+                        {nicknameElement}
+                        {expiryElement}
+                        <div className="flex min-w-0 items-center gap-3">
+                            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold">
+                                {item.text}
+                            </span>
+                        </div>
+                    </>
                 )}
-                {archived && (
-                    <div className="mb-[3px] text-[11px] leading-tight text-[color:var(--popup-muted)]">
-                        {expiryLabel(item)}
-                    </div>
-                )}
-                <div className="flex min-w-0 items-center gap-3">
-                    {item.type === 'image' && <span className="mock-thumbnail" aria-label="Screenshot thumbnail" />}
-                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold">
-                        {item.text}
-                    </span>
-                </div>
             </div>
 
             <div className="ml-auto flex items-start gap-2">

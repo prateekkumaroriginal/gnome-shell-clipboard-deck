@@ -931,21 +931,22 @@ class ClipboardPopup {
                 vertical: true,
                 x_expand: true,
             });
+            let nickname = null;
             if (item.nickname) {
-                const nickname = new St.Label({
+                nickname = new St.Label({
                     style_class: 'wc-nickname',
                     text: item.nickname,
                     x_expand: true,
                 });
                 nickname.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-                mainContent.add_child(nickname);
             }
+            let expiry = null;
             if (archived) {
-                mainContent.add_child(new St.Label({
+                expiry = new St.Label({
                     style_class: 'wc-expiry',
                     text: this._archiveExpiryLabel(item),
                     x_expand: true,
-                }));
+                });
             }
 
             const content = new St.BoxLayout({
@@ -963,6 +964,11 @@ class ClipboardPopup {
                     }),
                     icon_size: 56,
                 }));
+            } else {
+                if (nickname)
+                    mainContent.add_child(nickname);
+                if (expiry)
+                    mainContent.add_child(expiry);
             }
 
             const preview = new St.Label({
@@ -973,7 +979,22 @@ class ClipboardPopup {
                 x_expand: true,
             });
             preview.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-            content.add_child(preview);
+            if (item.type === 'image') {
+                const imageDetails = new St.BoxLayout({
+                    style_class: 'wc-item-image-details',
+                    vertical: true,
+                    x_expand: true,
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                if (nickname)
+                    imageDetails.add_child(nickname);
+                if (expiry)
+                    imageDetails.add_child(expiry);
+                imageDetails.add_child(preview);
+                content.add_child(imageDetails);
+            } else {
+                content.add_child(preview);
+            }
             mainContent.add_child(content);
             mainButton.set_child(mainContent);
             row.add_child(mainButton);
