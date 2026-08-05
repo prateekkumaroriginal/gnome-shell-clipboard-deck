@@ -1,6 +1,6 @@
 {
   "name": "Clipboard Deck",
-  "description": "A searchable, Windows-style history for clipboard text and screenshots. Clipboard contents are stored locally and are never transmitted. Choose the optional Super+V shortcut in Preferences.",
+  "description": "A searchable, Windows-style history for clipboard text and screenshots. Clipboard contents are stored locally and are never transmitted. Choose custom keyboard shortcuts in Preferences.",
   "uuid": "clipboard-deck@prateekkumaroriginal.github.io",
   "shell-version": ["46"],
   "settings-schema": "org.gnome.shell.extensions.clipboard-deck",

@@ -31,20 +31,30 @@ const IMAGE_MIME_TYPES = new Map([
     ['image/gif', 'gif'],
     ['image/bmp', 'bmp'],
 ]);
-const HELP_SHORTCUTS = [
-    [['Super', 'V'], 'Open Clipboard Deck'],
-    [['↑', '↓'], 'Move through history'],
-    [['Enter'], 'Paste selected item'],
-    [['Shift', 'Enter'], 'Copy without pasting'],
-    [['Ctrl', 'P'], 'Pin or unpin item'],
-    [['Ctrl', 'N'], 'Add or edit nickname'],
-    [['Delete'], 'Move item to Recycle Bin'],
-    [['Esc'], 'Close this panel or Deck'],
+const LOCAL_SHORTCUTS = [
+    [null, 'Paste selected item', 'Enter'],
+    ['shortcut-copy', 'Copy without pasting', null],
+    ['shortcut-pin', 'Pin or unpin item', null],
+    ['shortcut-nickname', 'Add or edit nickname', null],
+    [null, 'Move item to Recycle Bin', 'Delete'],
 ];
+const SHORTCUT_MODIFIER_MASK =
+    Clutter.ModifierType.SHIFT_MASK |
+    Clutter.ModifierType.CONTROL_MASK |
+    Clutter.ModifierType.MOD1_MASK |
+    Clutter.ModifierType.SUPER_MASK |
+    Clutter.ModifierType.HYPER_MASK |
+    Clutter.ModifierType.META_MASK;
 
 function compactPreview(text) {
     const compact = text.replace(/\s+/g, ' ').trim();
     return compact.length > 180 ? `${compact.slice(0, 179)}…` : compact;
+}
+
+function normalizedShortcutKeyval(keyval) {
+    if (keyval >= Clutter.KEY_A && keyval <= Clutter.KEY_Z)
+        return keyval + (Clutter.KEY_a - Clutter.KEY_A);
+    return keyval;
 }
 
 function createPinGlyph(filled) {
@@ -533,6 +543,8 @@ class ClipboardPopup {
         this._trashButton.accessible_name = 'Show Recycle Bin';
         this._clearConfirmOverlay.visible = false;
         this._title.set_text('Clipboard Deck');
+        this._pasteHint.set_text(
+            `${this._extension.shortcutLabel('shortcut-paste')}  Paste`);
         this._search.set_text('');
         this._selectedIndex = 0;
         this._render();
@@ -759,6 +771,23 @@ class ClipboardPopup {
             ? 'Show clipboard history'
             : 'Show Recycle Bin');
         header.add_child(this._trashButton);
+
+        this._settingsButton = new St.Button({
+            style_class: 'wc-settings-button',
+            can_focus: true,
+            accessible_name: 'Open settings',
+            child: new St.Icon({
+                icon_name: 'preferences-system-symbolic',
+                icon_size: 16,
+            }),
+        });
+        this._settingsButton.connect('clicked', () => {
+            this.close();
+            this._extension.openPreferences();
+        });
+        this._usePointerCursor(this._settingsButton);
+        this._addTooltip(this._settingsButton, 'Open settings');
+        header.add_child(this._settingsButton);
         this._popup.add_child(header);
 
         this._search = new St.Entry({
@@ -824,8 +853,19 @@ class ClipboardPopup {
             style_class: 'wc-footer',
             x_expand: true,
         });
-        for (const hint of ['↑↓  Navigate', 'Enter  Paste', 'Esc  Close'])
-            footer.add_child(new St.Label({style_class: 'wc-hint', text: hint}));
+        footer.add_child(new St.Label({
+            style_class: 'wc-hint',
+            text: '↑↓  Navigate',
+        }));
+        this._pasteHint = new St.Label({
+            style_class: 'wc-hint',
+            text: `${this._extension.shortcutLabel('shortcut-paste')}  Paste`,
+        });
+        footer.add_child(this._pasteHint);
+        footer.add_child(new St.Label({
+            style_class: 'wc-hint',
+            text: 'Esc  Close',
+        }));
         this._popup.add_child(footer);
 
         this._overlay.connect('key-press-event', (_actor, event) =>
@@ -944,36 +984,13 @@ class ClipboardPopup {
             style_class: 'wc-help-section-title',
             text: 'Keyboard shortcuts',
         }));
-        const shortcuts = new St.BoxLayout({
+        this._helpShortcuts = new St.BoxLayout({
             style_class: 'wc-help-shortcuts',
             vertical: true,
             x_expand: true,
         });
-        for (const [keys, description] of HELP_SHORTCUTS) {
-            const row = new St.BoxLayout({
-                style_class: 'wc-help-shortcut-row',
-                x_expand: true,
-            });
-            const keyGroup = new St.BoxLayout({
-                style_class: 'wc-help-shortcut-keys',
-            });
-            for (const key of keys) {
-                keyGroup.add_child(new St.Label({
-                    style_class: 'wc-help-key',
-                    text: key,
-                    y_align: Clutter.ActorAlign.CENTER,
-                }));
-            }
-            row.add_child(keyGroup);
-            row.add_child(new St.Label({
-                style_class: 'wc-help-shortcut-description',
-                text: description,
-                x_expand: true,
-                y_align: Clutter.ActorAlign.CENTER,
-            }));
-            shortcuts.add_child(row);
-        }
-        content.add_child(shortcuts);
+        this._refreshHelpShortcuts();
+        content.add_child(this._helpShortcuts);
 
         content.add_child(new St.Label({
             style_class: 'wc-help-section-title wc-help-icons-title',
@@ -985,6 +1002,7 @@ class ClipboardPopup {
             [new St.Icon({icon_name: 'media-playback-pause-symbolic', icon_size: 14}), 'Pause', 'Pause or resume capture'],
             [new St.Icon({icon_name: 'action-unavailable-symbolic', icon_size: 14}), 'Clear', 'Move all history to Recycle Bin'],
             [this._extensionIcon('recycle-bin-symbolic.svg', 14), 'Recycle Bin', 'Open archived items'],
+            [new St.Icon({icon_name: 'preferences-system-symbolic', icon_size: 14}), 'Settings', 'Customize keyboard shortcuts'],
             [this._extensionIcon('archive-symbolic.svg', 14), 'Archive', 'Move an item to Recycle Bin'],
             [new St.Icon({icon_name: 'document-revert-symbolic', icon_size: 14}), 'Restore', 'Restore archived items'],
             [this._extensionIcon('hash-symbolic.svg', 14), 'Nickname', 'Add or edit a nickname'],
@@ -1022,6 +1040,39 @@ class ClipboardPopup {
 
         scroll.set_child(content);
         this._helpPanel.add_child(scroll);
+    }
+
+    _refreshHelpShortcuts() {
+        if (!this._helpShortcuts)
+            return;
+
+        for (const child of this._helpShortcuts.get_children())
+            child.destroy();
+
+        for (const [keys, description] of this._extension.shortcutDefinitions()) {
+            const row = new St.BoxLayout({
+                style_class: 'wc-help-shortcut-row',
+                x_expand: true,
+            });
+            const keyGroup = new St.BoxLayout({
+                style_class: 'wc-help-shortcut-keys',
+            });
+            for (const key of keys) {
+                keyGroup.add_child(new St.Label({
+                    style_class: 'wc-help-key',
+                    text: key,
+                    y_align: Clutter.ActorAlign.CENTER,
+                }));
+            }
+            row.add_child(keyGroup);
+            row.add_child(new St.Label({
+                style_class: 'wc-help-shortcut-description',
+                text: description,
+                x_expand: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+            this._helpShortcuts.add_child(row);
+        }
     }
 
     _createHelpIconCard(icon, title, description) {
@@ -1073,6 +1124,7 @@ class ClipboardPopup {
         this._position();
 
         if (this._showHelp) {
+            this._refreshHelpShortcuts();
             this._stopCaretBlink();
             global.stage.set_key_focus(this._helpCloseButton);
         } else {
@@ -1638,9 +1690,7 @@ class ClipboardPopup {
 
     _onKeyPress(event) {
         const symbol = event.get_key_symbol();
-        const state = event.get_state();
-        const control = Boolean(state & Clutter.ModifierType.CONTROL_MASK);
-        const shift = Boolean(state & Clutter.ModifierType.SHIFT_MASK);
+        const modifiers = event.get_state() & SHORTCUT_MODIFIER_MASK;
 
         if (symbol === Clutter.KEY_Escape) {
             if (this._clearConfirmOverlay.visible) {
@@ -1666,14 +1716,22 @@ class ClipboardPopup {
             return Clutter.EVENT_STOP;
         }
 
-        if (symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) {
+        if (this._extension.matchesShortcut(event, 'shortcut-copy')) {
             const item = this._visibleItems[this._selectedIndex];
             if (item && !this._showTrash)
-                this._activate(item, !shift);
+                this._activate(item, false);
             return Clutter.EVENT_STOP;
         }
 
-        if (symbol === Clutter.KEY_Delete) {
+        if ((symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) &&
+            modifiers === 0) {
+            const item = this._visibleItems[this._selectedIndex];
+            if (item && !this._showTrash)
+                this._activate(item, true);
+            return Clutter.EVENT_STOP;
+        }
+
+        if (symbol === Clutter.KEY_Delete && modifiers === 0) {
             const item = this._visibleItems[this._selectedIndex];
             if (item) {
                 if (this._showTrash)
@@ -1684,7 +1742,7 @@ class ClipboardPopup {
             return Clutter.EVENT_STOP;
         }
 
-        if (control && (symbol === Clutter.KEY_p || symbol === Clutter.KEY_P)) {
+        if (this._extension.matchesShortcut(event, 'shortcut-pin')) {
             const item = this._visibleItems[this._selectedIndex];
             if (item && !this._showTrash) {
                 this._extension.store.togglePinned(item.id);
@@ -1693,7 +1751,7 @@ class ClipboardPopup {
             return Clutter.EVENT_STOP;
         }
 
-        if (control && (symbol === Clutter.KEY_n || symbol === Clutter.KEY_N)) {
+        if (this._extension.matchesShortcut(event, 'shortcut-nickname')) {
             const item = this._visibleItems[this._selectedIndex];
             if (item && !this._showTrash)
                 this._startNicknameEdit(item);
@@ -1774,6 +1832,18 @@ export default class ClipboardExtension extends Extension {
         this._captureSerial = 0;
         this._skippedClipboardText = null;
 
+        this._previewSignal = this.settings.connect(
+            'changed::preview-popup-request',
+            () => {
+                if (!this.settings.get_boolean('preview-popup-request'))
+                    return;
+                this.settings.set_boolean('preview-popup-request', false);
+                this.popup?.open();
+            }
+        );
+        if (this.settings.get_boolean('preview-popup-request'))
+            this.settings.set_boolean('preview-popup-request', false);
+
         this._sessionSignal = Main.sessionMode.connect('updated', () => {
             if (Main.sessionMode.isLocked)
                 this.popup?.close(false);
@@ -1809,6 +1879,11 @@ export default class ClipboardExtension extends Extension {
     disable() {
         Main.wm.removeKeybinding('toggle-popup');
 
+        if (this._previewSignal) {
+            this.settings.disconnect(this._previewSignal);
+            this._previewSignal = 0;
+        }
+
         if (this._selectionSignal) {
             this._selection.disconnect(this._selectionSignal);
             this._selectionSignal = 0;
@@ -1836,6 +1911,86 @@ export default class ClipboardExtension extends Extension {
         this.store = null;
         this.settings = null;
         this._clipboard = null;
+    }
+
+    matchesShortcut(event, settingsKey) {
+        const [keyval, modifiers] = this.settings
+            .get_value(settingsKey)
+            .deep_unpack();
+        if (!keyval)
+            return false;
+
+        const eventModifiers = event.get_state() & SHORTCUT_MODIFIER_MASK;
+        return normalizedShortcutKeyval(event.get_key_symbol()) === keyval &&
+            eventModifiers === (modifiers & SHORTCUT_MODIFIER_MASK);
+    }
+
+    shortcutLabel(settingsKey) {
+        if (settingsKey === 'shortcut-paste')
+            return 'Enter';
+        if (settingsKey === 'shortcut-archive')
+            return 'Delete';
+        const [keyval, _modifiers, label] = this.settings
+            .get_value(settingsKey)
+            .deep_unpack();
+        return keyval && label ? label : 'Disabled';
+    }
+
+    shortcutDefinitions() {
+        const shortcuts = [];
+        const globalAccelerator = this.settings.get_strv('toggle-popup')[0];
+        if (globalAccelerator) {
+            shortcuts.push([
+                this._acceleratorTokens(globalAccelerator),
+                'Open Clipboard Deck',
+            ]);
+        }
+
+        for (const [settingsKey, description, fixedLabel] of LOCAL_SHORTCUTS) {
+            if (fixedLabel) {
+                shortcuts.push([[fixedLabel], description]);
+                continue;
+            }
+            const [keyval, _modifiers, label] = this.settings
+                .get_value(settingsKey)
+                .deep_unpack();
+            if (keyval && label)
+                shortcuts.push([label.split('+'), description]);
+        }
+
+        shortcuts.push(
+            [['↑', '↓'], 'Move through history'],
+            [['Esc'], 'Close this panel or Deck']
+        );
+        return shortcuts;
+    }
+
+    _acceleratorTokens(accelerator) {
+        const modifierNames = {
+            Alt: 'Alt',
+            Control: 'Ctrl',
+            Ctrl: 'Ctrl',
+            Hyper: 'Hyper',
+            Meta: 'Meta',
+            Mod1: 'Alt',
+            Primary: 'Ctrl',
+            Shift: 'Shift',
+            Super: 'Super',
+        };
+        const tokens = [...accelerator.matchAll(/<([^>]+)>/g)]
+            .map(match => modifierNames[match[1]] ?? match[1]);
+        const rawKey = accelerator.replaceAll(/<[^>]+>/g, '');
+        const keyNames = {
+            Delete: 'Delete',
+            KP_Enter: 'Enter',
+            Return: 'Enter',
+            space: 'Space',
+        };
+        const key = keyNames[rawKey] ??
+            (rawKey.length === 1 ? rawKey.toLocaleUpperCase() : rawKey);
+        if (key)
+            tokens.push(key);
+        return tokens;
     }
 
     setClipboard(text, skipCapture = false) {

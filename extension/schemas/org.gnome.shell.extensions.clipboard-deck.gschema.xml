@@ -7,5 +7,35 @@
       <summary>Open clipboard history</summary>
       <description>Keyboard shortcut configured explicitly by the user.</description>
     </key>
+    <key name="shortcut-paste" type="(uus)">
+      <default>(65293, 0, 'Enter')</default>
+      <summary>Paste selected item</summary>
+      <description>Key value, modifier mask, and display label for pasting the selected item.</description>
+    </key>
+    <key name="shortcut-copy" type="(uus)">
+      <default>(65293, 1, 'Shift+Enter')</default>
+      <summary>Copy without pasting</summary>
+      <description>Key value, modifier mask, and display label for copying the selected item.</description>
+    </key>
+    <key name="shortcut-pin" type="(uus)">
+      <default>(112, 4, 'Ctrl+P')</default>
+      <summary>Pin or unpin item</summary>
+      <description>Key value, modifier mask, and display label for toggling the selected item's pin.</description>
+    </key>
+    <key name="shortcut-nickname" type="(uus)">
+      <default>(110, 4, 'Ctrl+N')</default>
+      <summary>Add or edit nickname</summary>
+      <description>Key value, modifier mask, and display label for editing the selected item's nickname.</description>
+    </key>
+    <key name="shortcut-archive" type="(uus)">
+      <default>(65535, 0, 'Delete')</default>
+      <summary>Move item to Recycle Bin</summary>
+      <description>Key value, modifier mask, and display label for archiving the selected item.</description>
+    </key>
+    <key name="preview-popup-request" type="b">
+      <default>false</default>
+      <summary>Preview popup request</summary>
+      <description>Transient request from Preferences to open Clipboard Deck.</description>
+    </key>
   </schema>
 </schemalist>

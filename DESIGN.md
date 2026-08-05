@@ -62,15 +62,15 @@ Shows a text preview or image thumbnail, optional searchable nickname, and pin s
 
 ### Privacy Control
 
-Header icons open the Help guide, toggle capture pause, open a ban-circle clear-history confirmation, restore all archived items, and open the extension’s Recycle Bin. The Recycle Bin uses a bin-with-recycling-arrows icon rather than the permanent-delete trash can. Confirming clear archives all active history. Archiving does not change the system clipboard. Recycle Bin entries remain recoverable for seven days; they display their expiry and offer Restore or permanent Delete, after which their unreferenced saved image files are removed. Paused state changes icon, label, and empty-state copy so it is not communicated by color alone.
+Header icons open the Help guide, toggle capture pause, open a ban-circle clear-history confirmation, restore all archived items, open the extension’s Recycle Bin, and open Preferences. The Recycle Bin uses a bin-with-recycling-arrows icon rather than the permanent-delete trash can. Confirming clear archives all active history. Archiving does not change the system clipboard. Recycle Bin entries remain recoverable for seven days; they display their expiry and offer Restore or permanent Delete, after which their unreferenced saved image files are removed. Paused state changes icon, label, and empty-state copy so it is not communicated by color alone.
 
 ### Help Guide
 
-The question-mark header control opens a compact attached panel. Its accent-yellow “Guide” title is followed by the supported keyboard shortcuts, a legend explaining every toolbar and item-action icon, and a local-storage privacy note. The panel appears beside the popup when space permits and overlays it on narrow monitors. `Escape` closes Help before it closes Clipboard Deck.
+The question-mark header control opens a compact attached panel. Its accent-yellow “Guide” title is followed by the currently configured keyboard shortcuts, a legend explaining every toolbar and item-action icon, and a local-storage privacy note. The panel appears beside the popup when space permits and overlays it on narrow monitors. `Escape` closes Help before it closes Clipboard Deck.
 
 ### Footer Hints
 
-Shows only `↑↓ Navigate`, `Enter Paste`, and `Esc Close`. Secondary shortcuts live in accessible descriptions and preferences.
+Shows only `↑↓ Navigate`, `Enter Paste`, and `Esc Close`. Enter remains fixed; configurable secondary shortcuts live in accessible descriptions and Preferences.
 
 ## Motion
 

@@ -16,7 +16,8 @@ compact Windows-inspired interface.
 - Press `Ctrl+N` to add, edit, or clear the selected entry's nickname.
 - Archive an entry with its archive-box icon or `Delete`; archived entries can be restored individually or all at once from the Recycle Bin for seven days.
 - Press `Escape` to close the popup.
-- Open the keyboard-and-icon guide, pause capture, clear history after confirmation, restore all archived entries, or open the extension's Recycle Bin from the popup header. Clearing moves entries to the Recycle Bin and none of these controls clear the system clipboard.
+- Customize the global shortcut plus copy-only, pin, and nickname shortcuts in Preferences. `Enter` for paste and `Delete` for archiving remain fixed.
+- Open the keyboard-and-icon guide, pause capture, clear history after confirmation, restore all archived entries, open the extension's Recycle Bin, or jump to Preferences from the popup header. Clearing moves entries to the Recycle Bin and none of these controls clear the system clipboard.
 
 ## Set the shortcut
 
@@ -25,7 +26,9 @@ by the user. After installation:
 
 1. Open the Extensions app.
 2. Open Clipboard Deck's preferences.
-3. Select **Use Super+V**.
+3. Select **Open Clipboard Deck**, then press your preferred key combination.
+
+The same page lets you customize copy-only, pin, and nickname actions while Clipboard Deck is open. Paste, archive, arrow-key navigation, and `Escape` remain fixed so the popup is always navigable and dismissible. Duplicate shortcuts and unmodified typing keys are rejected.
 
 The same preference window can be opened from a terminal:
 
@@ -115,7 +118,7 @@ the Extensions app, and choose the shortcut in Preferences.
 ## Source layout
 
 - `extension/extension.js`: clipboard capture, local history, popup, and shortcut
-- `extension/prefs.js`: explicit shortcut and privacy preferences
+- `extension/prefs.js` and `extension/prefs.css`: custom shortcut recording and its prototype-matched native Preferences UI
 - `extension/stylesheet.css`: GNOME Shell presentation
 - `web-preview/`: development-only React and Tailwind CSS v4 design lab
 - `extension/schemas/`: GSettings schema

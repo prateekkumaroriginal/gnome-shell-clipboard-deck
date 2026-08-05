@@ -2,6 +2,15 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 
 const DAY = 24 * 60 * 60 * 1000;
 
+const DEFAULT_SHORTCUTS = [
+    {id: 'open', label: 'Open Clipboard Deck', description: 'Works from anywhere', keys: ['Super', 'V'], global: true},
+    {id: 'paste', label: 'Paste selected item', description: 'Copies the item and returns to your app', keys: ['Enter'], immutable: true},
+    {id: 'copy', label: 'Copy without pasting', description: 'Leaves the selected item on the clipboard', keys: ['Shift', 'Enter']},
+    {id: 'pin', label: 'Pin or unpin item', description: 'Keeps frequently used items nearby', keys: ['Ctrl', 'P']},
+    {id: 'nickname', label: 'Add or edit nickname', description: 'Makes an item easier to search', keys: ['Ctrl', 'N']},
+    {id: 'archive', label: 'Move to Recycle Bin', description: 'Archived items remain recoverable for seven days', keys: ['Delete'], immutable: true},
+];
+
 const INITIAL_ITEMS = [
     {
         id: 'terminal-command',
@@ -74,10 +83,58 @@ function cx(...classes) {
     return classes.filter(Boolean).join(' ');
 }
 
+function eventToKeys(event) {
+    const modifiers = [];
+    if (event.metaKey)
+        modifiers.push('Super');
+    if (event.ctrlKey)
+        modifiers.push('Ctrl');
+    if (event.altKey)
+        modifiers.push('Alt');
+    if (event.shiftKey)
+        modifiers.push('Shift');
+
+    const names = {
+        ' ': 'Space',
+        ArrowUp: '↑',
+        ArrowDown: '↓',
+        ArrowLeft: '←',
+        ArrowRight: '→',
+        Backspace: 'Backspace',
+        Delete: 'Delete',
+        Enter: 'Enter',
+        Escape: 'Esc',
+        Tab: 'Tab',
+    };
+    const modifierKeys = ['Meta', 'Control', 'Alt', 'Shift'];
+    if (modifierKeys.includes(event.key))
+        return null;
+
+    const key = names[event.key] ?? (event.key.length === 1 ? event.key.toLocaleUpperCase() : event.key);
+    return [...modifiers, key];
+}
+
+function shortcutMatches(event, keys) {
+    const pressed = eventToKeys(event);
+    return Boolean(pressed) && pressed.join('+') === keys.join('+');
+}
+
+function ShortcutKeys({keys, muted = false}) {
+    if (!keys.length)
+        return <span className="shortcut-unset">Disabled</span>;
+
+    return (
+        <span className={cx('key-caps', muted && 'is-muted')}>
+            {keys.map(key => <kbd key={key}>{key}</kbd>)}
+        </span>
+    );
+}
+
 function Icon({name, className = 'size-4'}) {
     const paths = {
         clipboard: <><path d="M8.5 5.5h7M9 3h6a1 1 0 0 1 1 1v3H8V4a1 1 0 0 1 1-1Z"/><path d="M6 6h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/><path d="M8 11h8M8 15h5"/></>,
         help: <><circle cx="12" cy="12" r="9"/><path d="M9.7 9.1a2.45 2.45 0 0 1 4.7.9c0 1.8-2.4 2.1-2.4 3.7"/><path d="M12 17.2h.01"/></>,
+        settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.1 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2v-4h.4A1.7 1.7 0 0 0 4.1 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.56 3.7l.06.06A1.7 1.7 0 0 0 8.5 4.1a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2h4v.4A1.7 1.7 0 0 0 15 4.1a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.5a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.4v4h-.4a1.7 1.7 0 0 0-1.7 1.1Z"/></>,
         close: <><path d="m7 7 10 10M17 7 7 17"/></>,
     };
 
@@ -97,18 +154,13 @@ function Icon({name, className = 'size-4'}) {
     );
 }
 
-const HELP_SHORTCUTS = [
-    ['Super V', 'Open Clipboard Deck'],
-    ['↑  ↓', 'Move through history'],
-    ['Enter', 'Paste selected item'],
-    ['Shift Enter', 'Copy without pasting'],
-    ['Ctrl P', 'Pin or unpin item'],
-    ['Ctrl N', 'Add or edit nickname'],
-    ['Delete', 'Move item to Recycle Bin'],
-    ['Esc', 'Close this panel or Deck'],
-];
+function HelpPanel({open, onClose, shortcuts}) {
+    const helpShortcuts = [
+        ...shortcuts.filter(shortcut => shortcut.keys.length).map(shortcut => [shortcut.keys, shortcut.label]),
+        [['↑', '↓'], 'Move through history'],
+        [['Esc'], 'Close this panel or Deck'],
+    ];
 
-function HelpPanel({open, onClose}) {
     return (
         <aside
             className={cx('help-panel', open && 'is-open')}
@@ -127,9 +179,9 @@ function HelpPanel({open, onClose}) {
                 <section className="help-section" aria-labelledby="shortcuts-title">
                     <h3 id="shortcuts-title">Keyboard shortcuts</h3>
                     <dl className="shortcut-list">
-                        {HELP_SHORTCUTS.map(([keys, description]) => (
-                            <div key={keys}>
-                                <dt>{keys.split(' ').filter(Boolean).map((key, index) => <kbd key={`${key}-${index}`}>{key}</kbd>)}</dt>
+                        {helpShortcuts.map(([keys, description]) => (
+                            <div key={`${description}-${keys.join('-')}`}>
+                                <dt>{keys.map((key, index) => <kbd key={`${key}-${index}`}>{key}</kbd>)}</dt>
                                 <dd>{description}</dd>
                             </div>
                         ))}
@@ -140,6 +192,7 @@ function HelpPanel({open, onClose}) {
                     <h3 id="icons-title">Icon meanings</h3>
                     <dl className="icon-guide">
                         <div><dt><Icon name="help" /></dt><dd><strong>Help</strong><span>Open this guide</span></dd></div>
+                        <div><dt><Icon name="settings" /></dt><dd><strong>Settings</strong><span>Customize keyboard shortcuts</span></dd></div>
                         <div><dt><SymbolicIcon name="pause" /></dt><dd><strong>Pause</strong><span>Pause or resume capture</span></dd></div>
                         <div><dt><SymbolicIcon name="clear" /></dt><dd><strong>Clear</strong><span>Move all history to Recycle Bin</span></dd></div>
                         <div><dt><SymbolicIcon name="recycle" /></dt><dd><strong>Recycle Bin</strong><span>Open archived items</span></dd></div>
@@ -363,8 +416,181 @@ function ConfirmDialog({onCancel, onConfirm}) {
     );
 }
 
+function ShortcutRecorder({shortcut, shortcuts, onCancel, onSave}) {
+    const [candidate, setCandidate] = useState(shortcut.keys);
+    const [error, setError] = useState('');
+    const captureRef = useRef(null);
+
+    useEffect(() => {
+        captureRef.current?.focus();
+    }, []);
+
+    function capture(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (event.key === 'Escape') {
+            onCancel();
+            return;
+        }
+
+        const nextKeys = eventToKeys(event);
+        if (!nextKeys)
+            return;
+
+        const hasModifier = nextKeys.some(key => ['Super', 'Ctrl', 'Alt'].includes(key));
+        const mainKey = nextKeys.at(-1);
+        if (['↑', '↓', 'Esc'].includes(mainKey)) {
+            setCandidate(nextKeys);
+            setError(`${mainKey === 'Esc' ? 'Escape' : 'Arrow navigation'} stays available and cannot be reassigned.`);
+            return;
+        }
+
+        if (!hasModifier && mainKey?.length === 1) {
+            setCandidate(nextKeys);
+            setError('Use Super, Ctrl, or Alt with letters and numbers so search still works.');
+            return;
+        }
+
+        const conflict = shortcuts.find(item => item.id !== shortcut.id && item.keys.join('+') === nextKeys.join('+'));
+        setCandidate(nextKeys);
+        setError(conflict ? `Already used for “${conflict.label}”.` : '');
+    }
+
+    return (
+        <div className="shortcut-dialog-backdrop" role="presentation">
+            <section
+                ref={captureRef}
+                tabIndex={0}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="recorder-title"
+                className="shortcut-dialog"
+                onKeyDown={capture}
+            >
+                <h2 id="recorder-title">{shortcut.label}</h2>
+                <div className={cx('recorded-shortcut', error && 'has-error')}>
+                    <ShortcutKeys keys={candidate} />
+                </div>
+                <p className={cx('recorder-message', error && 'is-error')}>
+                    {error || 'Press the keys you want to use together'}
+                </p>
+                <div className="dialog-actions">
+                    <button type="button" className="flat-button" onClick={onCancel}>Cancel</button>
+                    <button type="button" className="suggested-button" disabled={Boolean(error) || candidate.length === 0} onClick={() => onSave(candidate)}>Set</button>
+                </div>
+            </section>
+        </div>
+    );
+}
+
+function ShortcutRow({shortcut, changed, onEdit, onReset}) {
+    return (
+        <div className="preference-row">
+            <div className="preference-copy">
+                <strong>{shortcut.label}</strong>
+                <span>{shortcut.description}</span>
+            </div>
+            {changed && !shortcut.immutable && (
+                <button type="button" className="reset-one" aria-label={`Reset ${shortcut.label}`} title="Reset to default" onClick={onReset}>↺</button>
+            )}
+            {shortcut.immutable ? (
+                <div className="shortcut-button is-fixed" aria-label={`${shortcut.label}: fixed shortcut`}>
+                    <ShortcutKeys keys={shortcut.keys} />
+                </div>
+            ) : (
+                <button type="button" className="shortcut-button" onClick={onEdit} aria-label={`Change ${shortcut.label}`}>
+                    <ShortcutKeys keys={shortcut.keys} muted={!shortcut.keys.length} />
+                </button>
+            )}
+        </div>
+    );
+}
+
+function PreferencesWindow({shortcuts, onChange, onClose, onBack}) {
+    const [editingId, setEditingId] = useState(null);
+    const editing = shortcuts.find(shortcut => shortcut.id === editingId);
+    const hasChanges = shortcuts.some((shortcut, index) => !shortcut.immutable && shortcut.keys.join('+') !== DEFAULT_SHORTCUTS[index].keys.join('+'));
+
+    function setKeys(id, keys) {
+        onChange(current => current.map(shortcut => shortcut.id === id ? {...shortcut, keys} : shortcut));
+        setEditingId(null);
+    }
+
+    function resetOne(id) {
+        const defaults = DEFAULT_SHORTCUTS.find(shortcut => shortcut.id === id);
+        setKeys(id, defaults.keys);
+    }
+
+    return (
+        <section className="preferences-window" aria-label="Clipboard Deck preferences">
+            <header className="preferences-header">
+                <button type="button" className="preferences-back" onClick={onBack}>Back</button>
+                <div className="window-title">
+                    <strong>Clipboard Deck</strong>
+                    <span>Preferences</span>
+                </div>
+                <button type="button" className="window-close" onClick={onClose} aria-label="Close preferences">×</button>
+            </header>
+
+            <div className="preferences-scroll">
+                <div className="preferences-intro">
+                    <span className="preferences-icon"><Icon name="clipboard" className="size-5" /></span>
+                    <div className="preferences-title-copy">
+                        <h1>Keyboard shortcuts</h1>
+                    </div>
+                    <button type="button" className="reset-all" disabled={!hasChanges} onClick={() => onChange(DEFAULT_SHORTCUTS.map(shortcut => ({...shortcut, keys: [...shortcut.keys]})))}>Reset all</button>
+                </div>
+
+                <section className="preference-section" aria-labelledby="global-shortcut-title">
+                    <h2 id="global-shortcut-title">Anywhere</h2>
+                    <div className="preference-group">
+                        {shortcuts.filter(shortcut => shortcut.global).map(shortcut => (
+                            <ShortcutRow
+                                key={shortcut.id}
+                                shortcut={shortcut}
+                                changed={shortcut.keys.join('+') !== DEFAULT_SHORTCUTS.find(item => item.id === shortcut.id).keys.join('+')}
+                                onEdit={() => setEditingId(shortcut.id)}
+                                onReset={() => resetOne(shortcut.id)}
+                            />
+                        ))}
+                    </div>
+                    <p className="section-note">GNOME may ask you to replace a shortcut already used by the system.</p>
+                </section>
+
+                <section className="preference-section" aria-labelledby="deck-shortcuts-title">
+                    <h2 id="deck-shortcuts-title">While Clipboard Deck is open</h2>
+                    <div className="preference-group">
+                        {shortcuts.filter(shortcut => !shortcut.global && !shortcut.immutable).map(shortcut => (
+                            <ShortcutRow
+                                key={shortcut.id}
+                                shortcut={shortcut}
+                                changed={shortcut.keys.join('+') !== DEFAULT_SHORTCUTS.find(item => item.id === shortcut.id).keys.join('+')}
+                                onEdit={() => setEditingId(shortcut.id)}
+                                onReset={() => resetOne(shortcut.id)}
+                            />
+                        ))}
+                    </div>
+                </section>
+
+            </div>
+
+            {editing && (
+                <ShortcutRecorder
+                    shortcut={editing}
+                    shortcuts={shortcuts}
+                    onCancel={() => setEditingId(null)}
+                    onSave={keys => setKeys(editing.id, keys)}
+                />
+            )}
+        </section>
+    );
+}
+
 export default function App() {
-    const [open, setOpen] = useState(true);
+    const [open, setOpen] = useState(false);
+    const [preferencesOpen, setPreferencesOpen] = useState(true);
+    const [shortcuts, setShortcuts] = useState(() => DEFAULT_SHORTCUTS.map(shortcut => ({...shortcut, keys: [...shortcut.keys]})));
     const [helpOpen, setHelpOpen] = useState(false);
     const [view, setView] = useState('history');
     const [paused, setPaused] = useState(false);
@@ -384,8 +610,9 @@ export default function App() {
     useEffect(() => () => clearTimeout(toastTimer.current), []);
 
     useEffect(() => {
-        focusSearch();
-    }, []);
+        if (open)
+            focusSearch();
+    }, [open]);
 
     const sourceItems = view === 'trash' ? trash : items;
     const visibleItems = useMemo(() => {
@@ -418,6 +645,7 @@ export default function App() {
 
     function openPopup() {
         setOpen(true);
+        setPreferencesOpen(false);
         setHelpOpen(false);
         setView('history');
         setQuery('');
@@ -432,6 +660,15 @@ export default function App() {
         setHelpOpen(false);
         setConfirming(false);
         setEditingId(null);
+    }
+
+    function openPreferences() {
+        closePopup();
+        setPreferencesOpen(true);
+    }
+
+    function keysFor(id) {
+        return shortcuts.find(shortcut => shortcut.id === id)?.keys ?? [];
     }
 
     function selectView(nextView) {
@@ -518,7 +755,7 @@ export default function App() {
     useEffect(() => {
         function handleKeyDown(event) {
             if (!open) {
-                if (event.key.toLocaleLowerCase() === 'v' && event.metaKey) {
+                if (!preferencesOpen && shortcutMatches(event, keysFor('open'))) {
                     event.preventDefault();
                     openPopup();
                 }
@@ -559,20 +796,24 @@ export default function App() {
                     const delta = event.key === 'ArrowDown' ? 1 : -1;
                     setSelected(index => (index + delta + visibleItems.length) % visibleItems.length);
                 }
-            } else if (event.key === 'Enter' && visibleItems[selected]) {
+            } else if (shortcutMatches(event, keysFor('copy')) && visibleItems[selected]) {
                 event.preventDefault();
                 if (view === 'history')
-                    pasteItem(visibleItems[selected], !event.shiftKey);
-            } else if (event.key === 'Delete' && visibleItems[selected]) {
+                    pasteItem(visibleItems[selected], false);
+            } else if (shortcutMatches(event, keysFor('paste')) && visibleItems[selected]) {
+                event.preventDefault();
+                if (view === 'history')
+                    pasteItem(visibleItems[selected], true);
+            } else if (shortcutMatches(event, keysFor('archive')) && visibleItems[selected]) {
                 event.preventDefault();
                 if (view === 'trash')
                     deleteTrashItem(visibleItems[selected].id);
                 else
                     archiveItem(visibleItems[selected].id);
-            } else if (event.ctrlKey && event.key.toLocaleLowerCase() === 'p' && visibleItems[selected] && view === 'history') {
+            } else if (shortcutMatches(event, keysFor('pin')) && visibleItems[selected] && view === 'history') {
                 event.preventDefault();
                 togglePin(visibleItems[selected].id);
-            } else if (event.ctrlKey && event.key.toLocaleLowerCase() === 'n' && visibleItems[selected] && view === 'history') {
+            } else if (shortcutMatches(event, keysFor('nickname')) && visibleItems[selected] && view === 'history') {
                 event.preventDefault();
                 startNickname(visibleItems[selected]);
             } else if (event.key === '/' && document.activeElement !== searchRef.current) {
@@ -593,7 +834,7 @@ export default function App() {
     return (
         <main className="min-h-screen bg-[var(--lab-bg)] text-[color:var(--lab-text)]">
             <section aria-label="Clipboard Deck preview canvas" className="min-w-0">
-                <div className={cx('desktop', open && 'has-popup', helpOpen && 'has-help')}>
+                <div className={cx('desktop', open && 'has-popup', helpOpen && 'has-help', preferencesOpen && 'has-preferences')}>
                         <div className="mock-workspace" aria-label="Mock application behind the popup">
                             <div className="mock-document">
                                 <span className="line-number">1</span><strong>Launch notes</strong>
@@ -618,6 +859,7 @@ export default function App() {
                                         <ToolbarButton label="Restore all archived items" disabled={trash.length === 0} onClick={restoreAll}><SymbolicIcon name="restore" /></ToolbarButton>
                                     )}
                                     <ToolbarButton label={view === 'trash' ? 'Show clipboard history' : 'Show Recycle Bin'} pressed={view === 'trash'} onClick={() => selectView(view === 'trash' ? 'history' : 'trash')}><SymbolicIcon name="recycle" className="size-[18px]" /></ToolbarButton>
+                                    <ToolbarButton label="Open settings" onClick={openPreferences}><Icon name="settings" /></ToolbarButton>
                                 </div>
                             </header>
 
@@ -657,21 +899,30 @@ export default function App() {
 
                             <footer className="flex h-[34px] items-end gap-[22px] border-t border-[#3d4049] px-0.5 pt-[7px] text-xs text-[#abadb7]">
                                 <span>↑↓&nbsp; Navigate</span>
-                                <span>Enter&nbsp; Paste</span>
+                                <span className="footer-shortcut"><ShortcutKeys keys={keysFor('paste')} /> Paste</span>
                                 <span>Esc&nbsp; Close</span>
                             </footer>
                         </section>
 
-                        <HelpPanel open={open && helpOpen} onClose={() => { setHelpOpen(false); focusSearch(); }} />
+                        <HelpPanel shortcuts={shortcuts} open={open && helpOpen} onClose={() => { setHelpOpen(false); focusSearch(); }} />
 
                         {confirming && <ConfirmDialog onCancel={() => { setConfirming(false); focusSearch(); }} onConfirm={confirmClear} />}
 
-                        {!open && (
-                            <button type="button" onClick={openPopup} className="reopen-card">
+                        {!open && !preferencesOpen && (
+                            <div className="reopen-card">
                                 <span className="reopen-icon"><Icon name="clipboard" /></span>
                                 <span><strong>Clipboard Deck closed</strong><small>Open it again to continue exploring</small></span>
-                                <kbd>Super V</kbd>
-                            </button>
+                                <button type="button" className="reopen-shortcut" onClick={openPopup}><ShortcutKeys keys={keysFor('open')} /></button>
+                                <button type="button" className="reopen-settings" onClick={() => setPreferencesOpen(true)}>Edit shortcuts</button>
+                            </div>
+                        )}
+                        {preferencesOpen && (
+                            <PreferencesWindow
+                                shortcuts={shortcuts}
+                                onChange={setShortcuts}
+                                onClose={() => setPreferencesOpen(false)}
+                                onBack={openPopup}
+                            />
                         )}
                         {toast && <div role="status" className="canvas-toast">{toast}</div>}
                 </div>

@@ -34,7 +34,8 @@
 .wc-help-button,
 .wc-clear-button,
 .wc-restore-all-button,
-.wc-trash-button {
+.wc-trash-button,
+.wc-settings-button {
   width: 32px;
   height: 32px;
   padding: 7px;
@@ -52,7 +53,9 @@
 .wc-restore-all-button:hover,
 .wc-restore-all-button:focus,
 .wc-trash-button:hover,
-.wc-trash-button:focus {
+.wc-trash-button:focus,
+.wc-settings-button:hover,
+.wc-settings-button:focus {
   color: #d7d8df;
   background-color: #363a45;
 }
