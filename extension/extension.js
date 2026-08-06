@@ -601,6 +601,7 @@ class ClipboardPopup {
             console.warn(`Clipboard Deck: caret cleanup failed: ${error.message}`);
         }
         global.display.set_cursor(Meta.Cursor.DEFAULT);
+        this._pointerCursorActors?.clear();
 
         if (!animate) {
             this._overlay.visible = false;
@@ -1230,8 +1231,12 @@ class ClipboardPopup {
             });
             row.track_hover = true;
             row.connect('notify::hover', () => this._updateRowActions(index));
-            if (archived)
+            if (archived) {
                 row.add_style_class_name('wc-item-archived');
+            } else {
+                // The row's padding and gaps are part of its click target too.
+                this._usePointerCursor(row);
+            }
 
             const mainButton = new St.Button({
                 style_class: 'wc-item-main',
@@ -1248,7 +1253,6 @@ class ClipboardPopup {
             mainButton.reactive = !archived;
             if (!archived)
                 mainButton.connect('clicked', () => this._activate(item, true));
-            this._usePointerCursor(mainButton);
             const mainContent = new St.BoxLayout({
                 style_class: 'wc-item-main-content',
                 vertical: true,
@@ -1535,14 +1539,20 @@ class ClipboardPopup {
     }
 
     _usePointerCursor(actor) {
+        this._pointerCursorActors ??= new Set();
         actor.track_hover = true;
         actor.connect('notify::hover', () => {
-            global.display.set_cursor(
-                actor.hover ? Meta.Cursor.POINTING_HAND : Meta.Cursor.DEFAULT
-            );
+            if (actor.hover)
+                this._pointerCursorActors.add(actor);
+            else
+                this._pointerCursorActors.delete(actor);
+            global.display.set_cursor(this._pointerCursorActors.size > 0
+                ? Meta.Cursor.POINTING_HAND
+                : Meta.Cursor.DEFAULT);
         });
         actor.connect('destroy', () => {
-            if (actor.hover)
+            this._pointerCursorActors.delete(actor);
+            if (this._pointerCursorActors.size === 0)
                 global.display.set_cursor(Meta.Cursor.DEFAULT);
         });
     }

@@ -262,6 +262,7 @@ export default class ClipboardDeckPreferences extends ExtensionPreferences {
 
         refresh();
         window.add(page);
+        this._setPointerCursors(window);
     }
 
     _findWidget(root, predicate) {
@@ -274,6 +275,21 @@ export default class ClipboardDeckPreferences extends ExtensionPreferences {
                 return match;
         }
         return null;
+    }
+
+    _setPointerCursors(root) {
+        if (root instanceof Gtk.Button)
+            this._usePointerCursor(root);
+        for (let child = root.get_first_child?.(); child;
+            child = child.get_next_sibling())
+            this._setPointerCursors(child);
+    }
+
+    _usePointerCursor(widget) {
+        const refresh = () => widget.set_cursor_from_name(
+            widget.get_sensitive() ? 'pointer' : 'default');
+        refresh();
+        widget.connect('notify::sensitive', refresh);
     }
 
     _sectionLabel(text, secondary = false) {
@@ -432,6 +448,8 @@ export default class ClipboardDeckPreferences extends ExtensionPreferences {
             label: 'Set',
             css_classes: ['recorder-button', 'recorder-set'],
         });
+        this._usePointerCursor(cancelButton);
+        this._usePointerCursor(setButton);
         cancelButton.connect('clicked', () => dialog.close());
         actions.append(cancelButton);
         actions.append(setButton);
