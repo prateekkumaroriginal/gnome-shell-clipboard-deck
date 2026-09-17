@@ -25,7 +25,7 @@ GNOME Shell CSS does not reliably accept OKLCH values, so implementation CSS use
 
 ## Typography
 
-Use the GNOME Shell system font. The popup title is 18 px semibold, item text is 14 px medium, metadata is 12 px regular, and keyboard hints are 12 px regular. Text previews use at most two lines.
+Use the GNOME Shell system font. The popup title is 18 px semibold, item text is 14 px medium, and metadata is 12 px regular. Text previews use at most two lines.
 
 ## Layout
 
@@ -36,7 +36,6 @@ Use the GNOME Shell system font. The popup title is 18 px semibold, item text is
 - Search-to-list gap: 12 px.
 - List item gap: 6 px.
 - Item padding: 12 px.
-- Footer height: 40 px.
 
 ## Shape and Depth
 
@@ -50,7 +49,7 @@ Use the GNOME Shell system font. The popup title is 18 px semibold, item text is
 
 ### Clipboard Deck Popup
 
-One modal Shell actor containing header, search, history list, empty state, and footer hints. It closes on `Escape`, outside click, shortcut toggle, workspace change, or lock.
+One modal Shell actor containing header, search, history list, and empty state. It closes on `Escape`, outside click, shortcut toggle, workspace change, or lock.
 
 ### Search
 
@@ -62,15 +61,15 @@ Shows a text preview or image thumbnail, optional searchable nickname, and pin s
 
 ### Privacy Control
 
-Header icons open the Help guide, toggle capture pause, open a ban-circle clear-history confirmation, restore all archived items, open the extension’s Recycle Bin, and open Preferences. The Recycle Bin uses a bin-with-recycling-arrows icon rather than the permanent-delete trash can. Confirming clear archives all active history. Archiving does not change the system clipboard. Recycle Bin entries remain recoverable for seven days; they display their expiry and offer Restore or permanent Delete, after which their unreferenced saved image files are removed. Paused state changes icon, label, and empty-state copy so it is not communicated by color alone.
+Header icons open the Help guide, toggle capture pause, open a ban-circle clear-history confirmation, restore all archived items, open the extension’s Recycle Bin, and open Settings inline. Settings uses the established full-size Preferences layout as a Shell surface instead of launching a GTK application, keeping it immediate and out of the taskbar. The Recycle Bin uses a bin-with-recycling-arrows icon rather than the permanent-delete trash can. Confirming clear archives all active history. Archiving does not change the system clipboard. Recycle Bin entries remain recoverable for seven days; they display their expiry and offer Restore or permanent Delete, after which their unreferenced saved image files are removed. Paused state changes icon, label, and empty-state copy so it is not communicated by color alone.
+
+### Settings
+
+The gear hides the compact history popup and shows the established full-size Preferences design as a Shell actor. A back button and `Escape` return to history. Shortcut recording preserves the original key-cap dialog design and appears as a modal layer within the same Shell surface; it rejects duplicate shortcuts, reserved navigation keys, and unmodified typing keys. No separate application window or taskbar entry is created.
 
 ### Help Guide
 
 The question-mark header control opens a compact attached panel. Its accent-yellow “Guide” title is followed by the currently configured keyboard shortcuts, a legend explaining every toolbar and item-action icon, and a local-storage privacy note. The panel appears beside the popup when space permits and overlays it on narrow monitors. `Escape` closes Help before it closes Clipboard Deck.
-
-### Footer Hints
-
-Shows only `↑↓ Navigate`, `Enter Paste`, and `Esc Close`. Enter remains fixed; configurable secondary shortcuts live in accessible descriptions and Preferences.
 
 ## Motion
 

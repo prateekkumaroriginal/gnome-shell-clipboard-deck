@@ -19,6 +19,8 @@ const POPUP_WIDTH = 440;
 const POPUP_HEIGHT = 580;
 const HELP_PANEL_WIDTH = 300;
 const PANEL_GAP = 12;
+const SETTINGS_WIDTH = 680;
+const SETTINGS_HEIGHT = 780;
 const SAVE_DELAY_MS = 250;
 const PASTE_DELAY_MS = 90;
 const PASTE_FOCUS_RETRIES = 5;
@@ -38,6 +40,68 @@ const LOCAL_SHORTCUTS = [
     ['shortcut-nickname', 'Add or edit nickname', null],
     [null, 'Move item to Recycle Bin', 'Delete'],
 ];
+const SETTINGS_ACTIONS = [
+    {
+        id: 'open',
+        settingsKey: 'toggle-popup',
+        title: 'Open Clipboard Deck',
+        subtitle: 'Works from anywhere',
+        global: true,
+        defaultShortcut: {
+            keyval: Clutter.KEY_v,
+            modifiers: Clutter.ModifierType.SUPER_MASK,
+            label: 'Super+V',
+            accelerator: '<Super>v',
+        },
+    },
+    {
+        id: 'copy',
+        settingsKey: 'shortcut-copy',
+        title: 'Copy without pasting',
+        subtitle: 'Leaves the selected item on the clipboard',
+        defaultShortcut: {
+            keyval: Clutter.KEY_Return,
+            modifiers: Clutter.ModifierType.SHIFT_MASK,
+            label: 'Shift+Enter',
+        },
+    },
+    {
+        id: 'pin',
+        settingsKey: 'shortcut-pin',
+        title: 'Pin or unpin item',
+        subtitle: 'Keeps frequently used items nearby',
+        defaultShortcut: {
+            keyval: Clutter.KEY_p,
+            modifiers: Clutter.ModifierType.CONTROL_MASK,
+            label: 'Ctrl+P',
+        },
+    },
+    {
+        id: 'nickname',
+        settingsKey: 'shortcut-nickname',
+        title: 'Add or edit nickname',
+        subtitle: 'Makes an item easier to search',
+        defaultShortcut: {
+            keyval: Clutter.KEY_n,
+            modifiers: Clutter.ModifierType.CONTROL_MASK,
+            label: 'Ctrl+N',
+        },
+    },
+];
+const MODIFIER_KEYVALS = new Set([
+    Clutter.KEY_Shift_L,
+    Clutter.KEY_Shift_R,
+    Clutter.KEY_Control_L,
+    Clutter.KEY_Control_R,
+    Clutter.KEY_Alt_L,
+    Clutter.KEY_Alt_R,
+    Clutter.KEY_Meta_L,
+    Clutter.KEY_Meta_R,
+    Clutter.KEY_Super_L,
+    Clutter.KEY_Super_R,
+    Clutter.KEY_Hyper_L,
+    Clutter.KEY_Hyper_R,
+]);
 const SHORTCUT_MODIFIER_MASK =
     Clutter.ModifierType.SHIFT_MASK |
     Clutter.ModifierType.CONTROL_MASK |
@@ -55,6 +119,97 @@ function normalizedShortcutKeyval(keyval) {
     if (keyval >= Clutter.KEY_A && keyval <= Clutter.KEY_Z)
         return keyval + (Clutter.KEY_a - Clutter.KEY_A);
     return keyval;
+}
+
+function shortcutKeyName(keyval, display = true) {
+    const names = new Map([
+        [Clutter.KEY_BackSpace, 'Backspace'],
+        [Clutter.KEY_Tab, 'Tab'],
+        [Clutter.KEY_Return, 'Enter'],
+        [Clutter.KEY_KP_Enter, 'Enter'],
+        [Clutter.KEY_Escape, 'Escape'],
+        [Clutter.KEY_space, display ? 'Space' : 'space'],
+        [Clutter.KEY_Delete, 'Delete'],
+        [Clutter.KEY_Insert, 'Insert'],
+        [Clutter.KEY_Home, 'Home'],
+        [Clutter.KEY_End, 'End'],
+        [Clutter.KEY_Page_Up, 'Page_Up'],
+        [Clutter.KEY_Page_Down, 'Page_Down'],
+        [Clutter.KEY_Left, 'Left'],
+        [Clutter.KEY_Right, 'Right'],
+        [Clutter.KEY_Up, 'Up'],
+        [Clutter.KEY_Down, 'Down'],
+    ]);
+    if (names.has(keyval))
+        return names.get(keyval);
+
+    for (let number = 1; number <= 12; number++) {
+        if (keyval === Clutter[`KEY_F${number}`])
+            return `F${number}`;
+    }
+
+    const unicode = Clutter.keysym_to_unicode(keyval);
+    if (!unicode)
+        return '';
+    const key = String.fromCodePoint(unicode);
+    return display ? key.toLocaleUpperCase() : key.toLocaleLowerCase();
+}
+
+function shortcutFromEvent(event) {
+    const keyval = normalizedShortcutKeyval(event.get_key_symbol());
+    const modifiers = event.get_state() & SHORTCUT_MODIFIER_MASK;
+    const parts = [];
+    if (modifiers & Clutter.ModifierType.CONTROL_MASK)
+        parts.push('Ctrl');
+    if (modifiers & Clutter.ModifierType.MOD1_MASK)
+        parts.push('Alt');
+    if (modifiers & Clutter.ModifierType.SHIFT_MASK)
+        parts.push('Shift');
+    if (modifiers & Clutter.ModifierType.SUPER_MASK)
+        parts.push('Super');
+    if (modifiers & Clutter.ModifierType.HYPER_MASK)
+        parts.push('Hyper');
+    if (modifiers & Clutter.ModifierType.META_MASK)
+        parts.push('Meta');
+    const keyName = shortcutKeyName(keyval);
+    if (keyName)
+        parts.push(keyName);
+    return {keyval, modifiers, label: parts.join('+')};
+}
+
+function shortcutAccelerator(shortcut) {
+    const parts = [];
+    if (shortcut.modifiers & Clutter.ModifierType.CONTROL_MASK)
+        parts.push('<Control>');
+    if (shortcut.modifiers & Clutter.ModifierType.MOD1_MASK)
+        parts.push('<Alt>');
+    if (shortcut.modifiers & Clutter.ModifierType.SHIFT_MASK)
+        parts.push('<Shift>');
+    if (shortcut.modifiers & Clutter.ModifierType.SUPER_MASK)
+        parts.push('<Super>');
+    if (shortcut.modifiers & Clutter.ModifierType.HYPER_MASK)
+        parts.push('<Hyper>');
+    if (shortcut.modifiers & Clutter.ModifierType.META_MASK)
+        parts.push('<Meta>');
+    const keyName = shortcutKeyName(shortcut.keyval, false);
+    return keyName ? `${parts.join('')}${keyName}` : '';
+}
+
+function canonicalShortcutLabel(label) {
+    const order = new Map([
+        ['ctrl', 0],
+        ['control', 0],
+        ['alt', 1],
+        ['shift', 2],
+        ['super', 3],
+        ['hyper', 4],
+        ['meta', 5],
+    ]);
+    return label.split('+')
+        .map(part => part.trim().toLocaleLowerCase())
+        .sort((first, second) =>
+            (order.get(first) ?? 100) - (order.get(second) ?? 100))
+        .join('+');
 }
 
 function createPinGlyph(filled) {
@@ -512,6 +667,9 @@ class ClipboardPopup {
         this._editingNicknameId = null;
         this._showTrash = false;
         this._showHelp = false;
+        this._showSettings = false;
+        this._recordingAction = null;
+        this._settingsRows = new Map();
         this._build();
     }
 
@@ -537,14 +695,17 @@ class ClipboardPopup {
         this._nicknameEditor.visible = false;
         this._showTrash = false;
         this._showHelp = false;
+        this._showSettings = false;
+        this._recordingAction = null;
         this._helpPanel.visible = false;
         this._helpButton.checked = false;
+        this._shortcutRecorderOverlay.visible = false;
+        this._popup.visible = true;
+        this._settingsView.visible = false;
         this._trashButton.checked = false;
         this._trashButton.accessible_name = 'Show Recycle Bin';
         this._clearConfirmOverlay.visible = false;
         this._title.set_text('Clipboard Deck');
-        this._pasteHint.set_text(
-            `${this._extension.shortcutLabel('shortcut-paste')}  Paste`);
         this._search.set_text('');
         this._selectedIndex = 0;
         this._render();
@@ -589,8 +750,11 @@ class ClipboardPopup {
         this._isOpen = false;
         this._editingNicknameId = null;
         this._showHelp = false;
+        this._showSettings = false;
+        this._recordingAction = null;
         this._helpPanel.visible = false;
         this._helpButton.checked = false;
+        this._shortcutRecorderOverlay.visible = false;
         this._nicknameEditor.visible = false;
         this._clearConfirmOverlay.visible = false;
         this._nicknameEntry.clutter_text.set_cursor_visible(false);
@@ -782,10 +946,8 @@ class ClipboardPopup {
                 icon_size: 16,
             }),
         });
-        this._settingsButton.connect('clicked', () => {
-            this.close();
-            this._extension.openPreferences();
-        });
+        this._settingsButton.connect('clicked', () =>
+            this._setSettingsVisible(true));
         this._usePointerCursor(this._settingsButton);
         this._addTooltip(this._settingsButton, 'Open settings');
         header.add_child(this._settingsButton);
@@ -850,24 +1012,8 @@ class ClipboardPopup {
         this._scroll.set_child(this._list);
         this._popup.add_child(this._scroll);
 
-        const footer = new St.BoxLayout({
-            style_class: 'wc-footer',
-            x_expand: true,
-        });
-        footer.add_child(new St.Label({
-            style_class: 'wc-hint',
-            text: '↑↓  Navigate',
-        }));
-        this._pasteHint = new St.Label({
-            style_class: 'wc-hint',
-            text: `${this._extension.shortcutLabel('shortcut-paste')}  Paste`,
-        });
-        footer.add_child(this._pasteHint);
-        footer.add_child(new St.Label({
-            style_class: 'wc-hint',
-            text: 'Esc  Close',
-        }));
-        this._popup.add_child(footer);
+        this._buildSettingsView();
+        this._overlay.add_child(this._settingsView);
 
         this._overlay.connect('key-press-event', (_actor, event) =>
             this._onKeyPress(event));
@@ -925,6 +1071,9 @@ class ClipboardPopup {
         this._clearConfirmOverlay.add_child(confirmDialog);
         this._overlay.add_child(this._clearConfirmOverlay);
 
+        this._buildShortcutRecorder();
+        this._overlay.add_child(this._shortcutRecorderOverlay);
+
         this._tooltip = new St.Label({
             style_class: 'wc-tooltip',
             visible: false,
@@ -932,6 +1081,504 @@ class ClipboardPopup {
         this._overlay.add_child(this._tooltip);
 
         Main.layoutManager.uiGroup.add_child(this._overlay);
+    }
+
+    _buildSettingsView() {
+        this._settingsView = new St.BoxLayout({
+            style_class: 'wc-settings-window',
+            vertical: true,
+            reactive: true,
+            can_focus: true,
+            visible: false,
+        });
+
+        const header = new St.BoxLayout({
+            style_class: 'wc-settings-window-header',
+            x_expand: true,
+        });
+        this._settingsBackButton = new St.Button({
+            style_class: 'wc-settings-back',
+            label: 'Back',
+            can_focus: true,
+            accessible_name: 'Back to clipboard history',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._settingsBackButton.connect('clicked', () =>
+            this._setSettingsVisible(false));
+        this._usePointerCursor(this._settingsBackButton);
+        header.add_child(this._settingsBackButton);
+        header.add_child(new St.Widget({x_expand: true}));
+
+        const windowTitle = new St.BoxLayout({
+            style_class: 'wc-settings-window-title',
+            vertical: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        windowTitle.add_child(new St.Label({
+            style_class: 'wc-settings-window-name',
+            text: 'Clipboard Deck',
+        }));
+        windowTitle.add_child(new St.Label({
+            style_class: 'wc-settings-window-subtitle',
+            text: 'Preferences',
+        }));
+        header.add_child(windowTitle);
+        header.add_child(new St.Widget({x_expand: true}));
+
+        const closeSlot = new St.Widget({
+            style_class: 'wc-settings-close-slot',
+            layout_manager: new Clutter.BinLayout(),
+        });
+        const closeButton = new St.Button({
+            style_class: 'wc-settings-close',
+            can_focus: true,
+            accessible_name: 'Close settings',
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+            child: this._extensionIcon('close-symbolic.svg', 14),
+        });
+        closeButton.connect('clicked', () => this.close());
+        this._usePointerCursor(closeButton);
+        closeSlot.add_child(closeButton);
+        header.add_child(closeSlot);
+        this._settingsView.add_child(header);
+
+        const scroll = new St.ScrollView({
+            style_class: 'wc-settings-scroll',
+            overlay_scrollbars: false,
+            x_expand: true,
+            y_expand: true,
+        });
+        const content = new St.BoxLayout({
+            style_class: 'wc-settings-content',
+            vertical: true,
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const intro = new St.BoxLayout({
+            style_class: 'wc-settings-intro',
+            x_expand: true,
+        });
+        const iconTile = new St.Widget({
+            style_class: 'wc-settings-icon-tile',
+            layout_manager: new Clutter.BinLayout(),
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        iconTile.add_child(new St.Icon({
+            icon_name: 'preferences-desktop-keyboard-shortcuts-symbolic',
+            icon_size: 24,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        intro.add_child(iconTile);
+        intro.add_child(new St.Label({
+            style_class: 'wc-settings-intro-title',
+            text: 'Keyboard shortcuts',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        intro.add_child(new St.Widget({x_expand: true}));
+        this._settingsResetAllButton = new St.Button({
+            style_class: 'wc-settings-reset-all',
+            label: 'Reset all',
+            can_focus: true,
+            accessible_name: 'Reset all keyboard shortcuts',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._settingsResetAllButton.connect('clicked', () => {
+            for (const action of SETTINGS_ACTIONS)
+                this._writeSettingsShortcut(action, action.defaultShortcut);
+            this._refreshSettingsRows();
+        });
+        this._usePointerCursor(this._settingsResetAllButton);
+        intro.add_child(this._settingsResetAllButton);
+        content.add_child(intro);
+
+        const addSection = (title, actions, secondary = false) => {
+            content.add_child(new St.Label({
+                style_class: secondary
+                    ? 'wc-settings-section-label wc-settings-secondary-section-label'
+                    : 'wc-settings-section-label',
+                text: title.toLocaleUpperCase(),
+                x_expand: true,
+            }));
+            const card = new St.BoxLayout({
+                style_class: 'wc-settings-card',
+                vertical: true,
+                x_expand: true,
+            });
+            for (const [index, action] of actions.entries()) {
+                if (index > 0) {
+                    card.add_child(new St.Widget({
+                        style_class: 'wc-settings-separator',
+                        x_expand: true,
+                    }));
+                }
+                card.add_child(this._createSettingsRow(action));
+            }
+            content.add_child(card);
+        };
+
+        addSection('Anywhere', SETTINGS_ACTIONS.filter(action => action.global));
+        content.add_child(new St.Label({
+            style_class: 'wc-settings-note',
+            text: 'GNOME may ask before replacing a system shortcut.',
+            x_expand: true,
+        }));
+        addSection('While Clipboard Deck is open',
+            SETTINGS_ACTIONS.filter(action => !action.global), true);
+
+        scroll.set_child(content);
+        this._settingsView.add_child(scroll);
+    }
+
+    _createSettingsRow(action) {
+        const row = new St.BoxLayout({
+            style_class: 'wc-settings-row',
+            x_expand: true,
+        });
+        const copy = new St.BoxLayout({
+            style_class: 'wc-settings-row-copy',
+            vertical: true,
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        copy.add_child(new St.Label({
+            style_class: 'wc-settings-row-title',
+            text: action.title,
+            x_expand: true,
+        }));
+        copy.add_child(new St.Label({
+            style_class: 'wc-settings-row-subtitle',
+            text: action.subtitle,
+            x_expand: true,
+        }));
+        row.add_child(copy);
+
+        const resetButton = new St.Button({
+            style_class: 'wc-settings-row-reset',
+            can_focus: true,
+            accessible_name: `Reset ${action.title}`,
+            child: new St.Icon({
+                icon_name: 'edit-undo-symbolic',
+                icon_size: 14,
+            }),
+        });
+        resetButton.connect('clicked', () => {
+            this._writeSettingsShortcut(action, action.defaultShortcut);
+            this._refreshSettingsRows();
+        });
+        this._usePointerCursor(resetButton);
+        row.add_child(resetButton);
+
+        const keyCaps = new St.BoxLayout({
+            style_class: 'wc-settings-key-caps',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        const editButton = new St.Button({
+            style_class: 'wc-settings-row-edit',
+            can_focus: true,
+            accessible_name: `Change ${action.title}`,
+            child: keyCaps,
+        });
+        editButton.connect('clicked', () =>
+            this._openShortcutRecorder(action));
+        this._usePointerCursor(editButton);
+        row.add_child(editButton);
+        this._settingsRows.set(action.id, {
+            editButton,
+            keyCaps,
+            resetButton,
+        });
+        return row;
+    }
+
+    _buildShortcutRecorder() {
+        this._shortcutRecorderOverlay = new St.Widget({
+            style_class: 'wc-shortcut-recorder-overlay',
+            reactive: true,
+            can_focus: true,
+            visible: false,
+            layout_manager: new Clutter.BinLayout(),
+        });
+        this._shortcutRecorderOverlay.connect('captured-event',
+            (_actor, event) => event.type() === Clutter.EventType.KEY_PRESS
+                ? this._onShortcutRecorderKeyPress(event)
+                : Clutter.EVENT_PROPAGATE);
+        const dialog = new St.BoxLayout({
+            style_class: 'wc-shortcut-recorder',
+            vertical: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._recorderTitle = new St.Label({
+            style_class: 'wc-shortcut-recorder-title',
+            text: 'Set shortcut',
+        });
+        dialog.add_child(this._recorderTitle);
+        this._recorderKeyArea = new St.Widget({
+            style_class: 'wc-shortcut-recorder-key-area',
+            layout_manager: new Clutter.BinLayout(),
+            x_expand: true,
+        });
+        this._recorderKeys = new St.BoxLayout({
+            style_class: 'wc-settings-key-caps',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._recorderKeyArea.add_child(this._recorderKeys);
+        dialog.add_child(this._recorderKeyArea);
+        this._recorderMessage = new St.Label({
+            style_class: 'wc-shortcut-recorder-message',
+            text: 'Press the keys you want to use together',
+            x_expand: true,
+        });
+        this._recorderMessage.clutter_text.line_wrap = true;
+        this._recorderMessage.clutter_text.line_wrap_mode =
+            Pango.WrapMode.WORD_CHAR;
+        dialog.add_child(this._recorderMessage);
+        dialog.add_child(new St.Widget({y_expand: true}));
+        const actions = new St.BoxLayout({
+            style_class: 'wc-shortcut-recorder-actions',
+            x_align: Clutter.ActorAlign.END,
+        });
+        this._recorderCancelButton = new St.Button({
+            style_class: 'wc-shortcut-recorder-cancel',
+            label: 'Cancel',
+            can_focus: true,
+        });
+        this._recorderCancelButton.connect('clicked', () =>
+            this._closeShortcutRecorder());
+        this._usePointerCursor(this._recorderCancelButton);
+        actions.add_child(this._recorderCancelButton);
+        this._recorderSetButton = new St.Button({
+            style_class: 'wc-shortcut-recorder-set',
+            label: 'Set',
+            can_focus: true,
+        });
+        this._recorderSetButton.connect('clicked', () => {
+            if (!this._recorderCandidate || !this._recordingAction)
+                return;
+            this._writeSettingsShortcut(
+                this._recordingAction, this._recorderCandidate);
+            this._refreshSettingsRows();
+            this._closeShortcutRecorder();
+        });
+        this._usePointerCursor(this._recorderSetButton);
+        actions.add_child(this._recorderSetButton);
+        dialog.add_child(actions);
+        this._shortcutRecorderOverlay.add_child(dialog);
+    }
+
+    _setSettingsVisible(visible) {
+        this._showSettings = Boolean(visible);
+        this._hideTooltip();
+        this._pointerCursorActors?.clear();
+        global.display.set_cursor(Meta.Cursor.DEFAULT);
+        if (this._showSettings && this._showHelp)
+            this._setHelpVisible(false);
+
+        this._popup.visible = !this._showSettings;
+        this._settingsView.visible = this._showSettings;
+        this._position();
+
+        if (this._showSettings) {
+            this._stopCaretBlink();
+            this._refreshSettingsRows();
+            global.stage.set_key_focus(this._settingsView);
+        } else {
+            this._render();
+            this._focusSearch();
+        }
+    }
+
+    _settingsShortcut(action) {
+        if (action.global) {
+            const accelerator = this._extension.settings
+                .get_strv(action.settingsKey)[0] ?? '';
+            if (!accelerator)
+                return {keyval: 0, modifiers: 0, label: 'Disabled'};
+
+            let modifiers = 0;
+            if (/<Control>|<Ctrl>|<Primary>/i.test(accelerator))
+                modifiers |= Clutter.ModifierType.CONTROL_MASK;
+            if (/<Alt>|<Mod1>/i.test(accelerator))
+                modifiers |= Clutter.ModifierType.MOD1_MASK;
+            if (/<Shift>/i.test(accelerator))
+                modifiers |= Clutter.ModifierType.SHIFT_MASK;
+            if (/<Super>/i.test(accelerator))
+                modifiers |= Clutter.ModifierType.SUPER_MASK;
+            if (/<Hyper>/i.test(accelerator))
+                modifiers |= Clutter.ModifierType.HYPER_MASK;
+            if (/<Meta>/i.test(accelerator))
+                modifiers |= Clutter.ModifierType.META_MASK;
+            const rawKey = accelerator.replaceAll(/<[^>]+>/g, '');
+            let keyval = Clutter[`KEY_${rawKey}`] ?? 0;
+            if (!keyval && [...rawKey].length === 1)
+                keyval = Clutter.unicode_to_keysym(rawKey.codePointAt(0));
+            return {
+                keyval: normalizedShortcutKeyval(keyval),
+                modifiers,
+                label: this._extension._acceleratorTokens(accelerator)
+                    .join('+'),
+                accelerator,
+            };
+        }
+        const [keyval, _modifiers, label] = this._extension.settings
+            .get_value(action.settingsKey)
+            .deep_unpack();
+        return {
+            keyval,
+            modifiers: _modifiers,
+            label: keyval && label ? label : 'Disabled',
+        };
+    }
+
+    _settingsShortcutLabel(action) {
+        return this._settingsShortcut(action).label;
+    }
+
+    _setShortcutKeyCaps(container, label, large = false) {
+        container.destroy_all_children();
+        if (!label || label === 'Disabled') {
+            container.add_child(new St.Label({
+                style_class: 'wc-settings-shortcut-disabled',
+                text: 'Disabled',
+            }));
+            return;
+        }
+
+        for (const token of label.split('+')) {
+            const keyCap = new St.Widget({
+                style_class: large
+                    ? 'wc-settings-key-cap wc-settings-key-cap-large'
+                    : 'wc-settings-key-cap',
+                layout_manager: new Clutter.BinLayout(),
+            });
+            keyCap.add_child(new St.Label({
+                style_class: 'wc-settings-key-cap-label',
+                text: token.trim(),
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+            container.add_child(keyCap);
+        }
+    }
+
+    _refreshSettingsRows() {
+        let hasChanges = false;
+        for (const action of SETTINGS_ACTIONS) {
+            const row = this._settingsRows.get(action.id);
+            if (!row)
+                continue;
+            const label = this._settingsShortcutLabel(action);
+            const changed = label !== action.defaultShortcut.label;
+            this._setShortcutKeyCaps(row.keyCaps, label);
+            row.resetButton.visible = changed;
+            hasChanges ||= changed;
+        }
+        this._settingsResetAllButton.reactive = hasChanges;
+        this._settingsResetAllButton.opacity = hasChanges ? 255 : 96;
+    }
+
+    _writeSettingsShortcut(action, shortcut) {
+        if (action.global) {
+            const accelerator = shortcut.accelerator ??
+                shortcutAccelerator(shortcut);
+            this._extension.settings.set_strv(
+                action.settingsKey, accelerator ? [accelerator] : []);
+            return;
+        }
+        this._extension.settings.set_value(
+            action.settingsKey,
+            new GLib.Variant('(uus)', [
+                shortcut.keyval,
+                shortcut.modifiers,
+                shortcut.label,
+            ])
+        );
+    }
+
+    _openShortcutRecorder(action) {
+        this._recordingAction = action;
+        this._recorderTitle.set_text(action.title);
+        this._setRecorderCandidate(this._settingsShortcut(action));
+        this._shortcutRecorderOverlay.visible = true;
+        global.stage.set_key_focus(this._shortcutRecorderOverlay);
+    }
+
+    _closeShortcutRecorder() {
+        this._shortcutRecorderOverlay.visible = false;
+        this._recordingAction = null;
+        this._recorderCandidate = null;
+        if (this._showSettings)
+            global.stage.set_key_focus(this._settingsView);
+    }
+
+    _setRecorderCandidate(shortcut, error = '') {
+        this._recorderCandidate = error ? null : shortcut;
+        this._setShortcutKeyCaps(
+            this._recorderKeys, shortcut?.label || 'Disabled', true);
+        this._recorderMessage.set_text(
+            error || 'Press the keys you want to use together');
+        if (error) {
+            this._recorderKeyArea.add_style_pseudo_class('error');
+            this._recorderMessage.add_style_pseudo_class('error');
+        } else {
+            this._recorderKeyArea.remove_style_pseudo_class('error');
+            this._recorderMessage.remove_style_pseudo_class('error');
+        }
+        const valid = Boolean(shortcut) && !error;
+        this._recorderSetButton.reactive = valid;
+        this._recorderSetButton.opacity = valid ? 255 : 96;
+    }
+
+    _onShortcutRecorderKeyPress(event) {
+        const symbol = event.get_key_symbol();
+        if (symbol === Clutter.KEY_Escape) {
+            this._closeShortcutRecorder();
+            return Clutter.EVENT_STOP;
+        }
+        if (MODIFIER_KEYVALS.has(symbol))
+            return Clutter.EVENT_STOP;
+
+        const shortcut = shortcutFromEvent(event);
+        if ([Clutter.KEY_Up, Clutter.KEY_Down].includes(symbol)) {
+            this._setRecorderCandidate(shortcut,
+                'Arrow navigation and Escape stay available.');
+            return Clutter.EVENT_STOP;
+        }
+
+        const unicode = Clutter.keysym_to_unicode(symbol);
+        if (shortcut.modifiers === 0 && unicode >= 0x20 && unicode !== 0x7f) {
+            this._setRecorderCandidate(shortcut,
+                'Use Super, Ctrl, or Alt with typing keys.');
+            return Clutter.EVENT_STOP;
+        }
+        if (!shortcutKeyName(shortcut.keyval, false)) {
+            this._setRecorderCandidate(shortcut,
+                'That key cannot be used as a shortcut.');
+            return Clutter.EVENT_STOP;
+        }
+
+        let conflict = null;
+        if (shortcut.modifiers === 0 &&
+            [Clutter.KEY_Return, Clutter.KEY_KP_Enter].includes(symbol)) {
+            conflict = 'Paste selected item';
+        } else if (shortcut.modifiers === 0 && symbol === Clutter.KEY_Delete) {
+            conflict = 'Move to Recycle Bin';
+        } else {
+            conflict = SETTINGS_ACTIONS.find(action =>
+                action.id !== this._recordingAction.id &&
+                canonicalShortcutLabel(this._settingsShortcutLabel(action)) ===
+                    canonicalShortcutLabel(shortcut.label))?.title;
+        }
+        this._setRecorderCandidate(shortcut, conflict
+            ? `Already used for “${conflict}”.`
+            : '');
+        return Clutter.EVENT_STOP;
     }
 
     _buildHelpPanel() {
@@ -1149,6 +1796,14 @@ class ClipboardPopup {
         let popupX = Math.round((monitor.width - POPUP_WIDTH) / 2);
         let helpX = Math.round((monitor.width - HELP_PANEL_WIDTH) / 2);
         let helpWidth = HELP_PANEL_WIDTH;
+        const settingsWidth = Math.min(
+            SETTINGS_WIDTH,
+            Math.max(420, monitor.width - 40)
+        );
+        const settingsHeight = Math.min(
+            SETTINGS_HEIGHT,
+            Math.max(520, monitor.height - 56)
+        );
 
         if (this._showHelp && hasSideRoom) {
             const groupWidth = POPUP_WIDTH + PANEL_GAP + HELP_PANEL_WIDTH;
@@ -1164,13 +1819,25 @@ class ClipboardPopup {
         this._backdrop.set_size(monitor.width, monitor.height);
         this._clearConfirmOverlay.set_position(0, 0);
         this._clearConfirmOverlay.set_size(monitor.width, monitor.height);
+        this._shortcutRecorderOverlay.set_position(0, 0);
+        this._shortcutRecorderOverlay.set_size(monitor.width, monitor.height);
         this._popup.set_position(popupX, popupY);
         this._popup.set_size(POPUP_WIDTH, popupHeight);
+        this._settingsView.set_position(
+            Math.round((monitor.width - settingsWidth) / 2),
+            Math.round((monitor.height - settingsHeight) / 2)
+        );
+        this._settingsView.set_size(settingsWidth, settingsHeight);
         this._helpPanel.set_position(helpX, popupY);
         this._helpPanel.set_size(helpWidth, popupHeight);
     }
 
     _render() {
+        if (this._showSettings) {
+            this._refreshSettingsRows();
+            return;
+        }
+
         this._list.destroy_all_children();
         this._rows = [];
         this._rowActions = [];
@@ -1699,6 +2366,9 @@ class ClipboardPopup {
     }
 
     _onKeyPress(event) {
+        if (this._recordingAction)
+            return this._onShortcutRecorderKeyPress(event);
+
         const symbol = event.get_key_symbol();
         const modifiers = event.get_state() & SHORTCUT_MODIFIER_MASK;
 
@@ -1711,9 +2381,16 @@ class ClipboardPopup {
                 this._setHelpVisible(false);
                 return Clutter.EVENT_STOP;
             }
+            if (this._showSettings) {
+                this._setSettingsVisible(false);
+                return Clutter.EVENT_STOP;
+            }
             this.close();
             return Clutter.EVENT_STOP;
         }
+
+        if (this._showSettings)
+            return Clutter.EVENT_PROPAGATE;
 
         if (symbol === Clutter.KEY_Down || symbol === Clutter.KEY_Up) {
             if (this._visibleItems.length === 0)
