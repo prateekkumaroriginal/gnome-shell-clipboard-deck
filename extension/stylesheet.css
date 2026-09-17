@@ -31,9 +31,11 @@
 }
 
 .wc-pause-button,
+.wc-help-button,
 .wc-clear-button,
 .wc-restore-all-button,
-.wc-trash-button {
+.wc-trash-button,
+.wc-settings-button {
   width: 32px;
   height: 32px;
   padding: 7px;
@@ -44,13 +46,17 @@
 
 .wc-pause-button:hover,
 .wc-pause-button:focus,
+.wc-help-button:hover,
+.wc-help-button:focus,
 .wc-clear-button:hover,
 .wc-clear-button:focus,
 .wc-restore-all-button:hover,
 .wc-restore-all-button:focus,
 .wc-trash-button:hover,
-.wc-trash-button:focus {
-  color: #ffffff;
+.wc-trash-button:focus,
+.wc-settings-button:hover,
+.wc-settings-button:focus {
+  color: #d7d8df;
   background-color: #363a45;
 }
 
@@ -59,8 +65,13 @@
   background-color: #e7aa3d;
 }
 
+.wc-help-button:checked {
+  color: #d7d8df;
+  background-color: #e7aa3d;
+}
+
 .wc-trash-button:checked {
-  color: #211a0e;
+  color: #d7d8df;
   background-color: #e7aa3d;
 }
 
@@ -82,7 +93,7 @@
 
 .wc-scroll {
   width: 412px;
-  height: 420px;
+  height: 452px;
 }
 
 .wc-scroll StScrollBar {
@@ -264,8 +275,8 @@
 
 .wc-delete:hover,
 .wc-delete:focus {
-  color: #ffb4ae;
-  background-color: #4a3032;
+  color: #ffc1bc;
+  background-color: #66282f;
 }
 
 .wc-restore:hover,
@@ -338,16 +349,317 @@
   text-align: center;
 }
 
-.wc-footer {
-  height: 34px;
-  padding: 7px 2px 0;
-  spacing: 22px;
-  border-top: 1px solid #3d4049;
+.wc-settings-window {
+  color: #f3f3f5;
+  background-color: #202126;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 
-.wc-hint {
-  color: #abadb7;
+.wc-settings-window-header {
+  height: 50px;
+  padding: 9px 12px;
+  background-color: #292a30;
+  border-bottom: 1px solid #15161a;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.wc-settings-back {
+  min-width: 50px;
+  min-height: 31px;
+  padding: 0 11px;
+  color: #ededf0;
+  background-color: #37383f;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wc-settings-back:hover,
+.wc-settings-back:focus,
+.wc-settings-close:hover,
+.wc-settings-close:focus {
+  background-color: #45464e;
+}
+
+.wc-settings-window-title {
+  spacing: 2px;
+}
+
+.wc-settings-window-name {
+  color: #f3f3f5;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.wc-settings-window-subtitle {
+  color: #a9aab0;
+  font-size: 10px;
+  text-align: center;
+}
+
+.wc-settings-close-slot {
+  width: 50px;
+  height: 32px;
+}
+
+.wc-settings-close {
+  width: 30px;
+  height: 30px;
+  padding: 8px;
+  color: #e4e4e7;
+  background-color: #37383f;
+  border-radius: 8px;
+}
+
+.wc-settings-scroll {
+  padding: 0 54px 34px;
+}
+
+.wc-settings-scroll StScrollBar {
+  padding-left: 6px;
+}
+
+.wc-settings-content {
+  width: 572px;
+  spacing: 0;
+}
+
+.wc-settings-intro {
+  min-height: 84px;
+  spacing: 13px;
+}
+
+.wc-settings-icon-tile {
+  width: 52px;
+  height: 52px;
+  color: #a9abb2;
+  background-color: #2c2d33;
+  border: 1px solid #3b3d44;
+  border-radius: 12px;
+}
+
+.wc-settings-intro-title {
+  color: #fafafa;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.wc-settings-reset-all {
+  min-height: 32px;
+  padding: 3px 13px;
+  color: #ededf0;
+  background-color: #393a42;
+  border-radius: 8px;
   font-size: 12px;
+  font-weight: 600;
+}
+
+.wc-settings-reset-all:hover,
+.wc-settings-reset-all:focus {
+  background-color: #484a53;
+}
+
+.wc-settings-section-label {
+  margin: 0 0 9px 10px;
+  color: #c7c8ce;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.wc-settings-secondary-section-label {
+  margin-top: 24px;
+}
+
+.wc-settings-card {
+  background-color: #2c2d33;
+  border: 1px solid #3b3d44;
+  border-radius: 12px;
+}
+
+.wc-settings-separator {
+  height: 1px;
+  background-color: #404149;
+}
+
+.wc-settings-row {
+  min-height: 66px;
+  padding: 7px 11px 7px 15px;
+  spacing: 8px;
+}
+
+.wc-settings-row-copy {
+  min-width: 0;
+  spacing: 4px;
+}
+
+.wc-settings-row-title {
+  color: #f0f0f2;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wc-settings-row-subtitle {
+  color: #a9abb2;
+  font-size: 10px;
+}
+
+.wc-settings-row-reset {
+  width: 28px;
+  height: 28px;
+  padding: 7px;
+  color: #bfc0c7;
+  background-color: transparent;
+  border-radius: 7px;
+}
+
+.wc-settings-row-reset:hover,
+.wc-settings-row-reset:focus {
+  color: #ffffff;
+  background-color: #42444c;
+}
+
+.wc-settings-row-edit {
+  min-width: 88px;
+  min-height: 36px;
+  padding: 4px 8px;
+  color: #eeeeef;
+  background-color: #383a42;
+  border: 1px solid #4b4d56;
+  border-radius: 8px;
+}
+
+.wc-settings-row-edit:hover,
+.wc-settings-row-edit:focus {
+  background-color: #444650;
+  border-color: #656873;
+}
+
+.wc-settings-key-caps {
+  spacing: 4px;
+}
+
+.wc-settings-key-cap {
+  min-width: 23px;
+  min-height: 21px;
+  padding: 1px 5px;
+  color: #f4f4f6;
+  background-color: #222329;
+  border: 1px solid #555862;
+  border-radius: 5px;
+  box-shadow: 0 1px rgba(255, 255, 255, 0.07);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.wc-settings-key-cap-label {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: center;
+}
+
+.wc-settings-key-cap-large {
+  min-width: 30px;
+  min-height: 22px;
+  padding: 1px 7px;
+  font-size: 11px;
+}
+
+.wc-settings-shortcut-disabled {
+  color: #9d9fa7;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.wc-settings-note {
+  margin: 8px 0 0 10px;
+  color: #90929a;
+  font-size: 10px;
+}
+
+.wc-shortcut-recorder-overlay {
+  background-color: rgba(11, 12, 15, 0.76);
+}
+
+.wc-shortcut-recorder {
+  width: 390px;
+  height: 250px;
+  padding: 24px 25px 20px;
+  spacing: 8px;
+  color: #f3f3f5;
+  background-color: #2a2b31;
+  border: 1px solid #4c4e57;
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48);
+}
+
+.wc-shortcut-recorder-title {
+  color: #f3f3f5;
+  font-size: 19px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.wc-shortcut-recorder-key-area {
+  min-height: 48px;
+  margin-top: 7px;
+  padding: 5px 8px;
+  background-color: #202126;
+  border: 1px solid #464851;
+  border-radius: 10px;
+}
+
+.wc-shortcut-recorder-key-area:error {
+  border-color: #d15d61;
+}
+
+.wc-shortcut-recorder-message {
+  min-height: 17px;
+  color: #c5c6cc;
+  font-size: 11px;
+  text-align: center;
+}
+
+.wc-shortcut-recorder-message:error {
+  color: #ffb4ae;
+}
+
+.wc-shortcut-recorder-actions {
+  margin-top: 10px;
+  spacing: 8px;
+}
+
+.wc-shortcut-recorder-cancel,
+.wc-shortcut-recorder-set {
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wc-shortcut-recorder-cancel {
+  color: #ededf0;
+  background-color: #393a42;
+}
+
+.wc-shortcut-recorder-cancel:hover,
+.wc-shortcut-recorder-cancel:focus {
+  background-color: #484a53;
+}
+
+.wc-shortcut-recorder-set {
+  color: #251c0d;
+  background-color: #e7aa3d;
+}
+
+.wc-shortcut-recorder-set:hover,
+.wc-shortcut-recorder-set:focus {
+  background-color: #f1b84f;
 }
 
 .wc-toast {
@@ -356,4 +668,172 @@
   background-color: #2b2e37;
   border-radius: 9px;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.34);
+}
+
+.wc-tooltip {
+  padding: 6px 9px;
+  color: #ffffff;
+  background-color: #17191f;
+  border: 1px solid #454853;
+  border-radius: 6px;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.42);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.wc-help-panel {
+  width: 300px;
+  height: 580px;
+  color: #f2f2f6;
+  background-color: #1c1e25;
+  border: 1px solid #343741;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.48);
+}
+
+.wc-help-header {
+  height: 30px;
+  padding: 10px 14px;
+}
+
+.wc-help-separator {
+  height: 1px;
+  background-color: #454853;
+}
+
+.wc-help-title {
+  color: #e7aa3d;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.wc-help-close {
+  width: 18px;
+  height: 18px;
+  padding: 4px;
+  color: #ffffff;
+  background-color: transparent;
+  border-radius: 7px;
+}
+
+.wc-help-close:focus {
+  color: #ffffff;
+  background-color: transparent;
+}
+
+.wc-help-close:hover {
+  color: #ffffff;
+  background-color: #3f424c;
+}
+
+.wc-help-scroll {
+  padding: 14px 16px 18px;
+}
+
+.wc-help-scroll StScrollBar {
+  padding-left: 6px;
+}
+
+.wc-help-content {
+  spacing: 0;
+}
+
+.wc-help-section-title {
+  padding-bottom: 9px;
+  color: #d8d9df;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wc-help-icons-title {
+  padding-top: 18px;
+}
+
+.wc-help-shortcuts {
+  border-top: none;
+}
+
+.wc-help-shortcut-row {
+  min-height: 34px;
+  border-bottom: 1px solid #343741;
+}
+
+.wc-help-shortcut-keys {
+  width: 90px;
+  spacing: 3px;
+}
+
+.wc-help-key {
+  min-width: 19px;
+  padding: 3px 5px;
+  color: #e6e7ec;
+  background-color: #30333c;
+  border: 1px solid #494d59;
+  border-radius: 5px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07);
+  font-size: 9px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.wc-help-shortcut-description {
+  color: #abadb7;
+  font-size: 10px;
+}
+
+.wc-help-icon-guide {
+  spacing: 7px;
+}
+
+.wc-help-icon-copy {
+  spacing: 0;
+}
+
+.wc-help-icon-card {
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px;
+  spacing: 7px;
+  background-color: #292c34;
+  border: 1px solid #383b45;
+  border-radius: 8px;
+}
+
+.wc-help-icon-slot {
+  width: 27px;
+  height: 27px;
+  color: #e7aa3d;
+  background-color: #39352c;
+  border-radius: 7px;
+}
+
+.wc-help-icon-name {
+  color: #e2e3e8;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.wc-help-icon-description {
+  padding-top: 2px;
+  color: #abadb7;
+  font-size: 9px;
+}
+
+.wc-help-privacy {
+  margin-top: 11px;
+  padding: 10px 11px;
+  background-color: #24262e;
+  border-radius: 8px;
+}
+
+.wc-help-privacy-title {
+  padding-bottom: 2px;
+  color: #e2e3e8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wc-help-privacy-description {
+  color: #bbbcc4;
+  font-size: 10px;
 }

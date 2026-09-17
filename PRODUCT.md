@@ -10,7 +10,7 @@ The primary user is the owner of this Ubuntu GNOME 46 workstation. They work acr
 
 ## Product Purpose
 
-Clipboard Deck provides a Windows-style clipboard history on GNOME. After the user explicitly assigns `Super+V` in Preferences, it opens a focused flyout over the current application. The user can search or navigate recent content, paste it into the previous application, pin useful entries, and manage local history. Success means the third-most-recent item can be found and reused in a few seconds without touching the pointer.
+Clipboard Deck provides a Windows-style clipboard history on GNOME. After the user explicitly assigns a global shortcut in Preferences, it opens a focused flyout over the current application. The user can customize its action shortcuts, search or navigate recent content, paste it into the previous application, pin useful entries, and manage local history. Success means the third-most-recent item can be found and reused in a few seconds without touching the pointer.
 
 ## Brand Personality
 

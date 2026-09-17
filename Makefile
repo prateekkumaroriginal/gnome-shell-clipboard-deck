@@ -10,7 +10,7 @@ validate:
 
 pack: validate
 	mkdir -p dist
-	gnome-extensions pack --force --out-dir=dist --extra-source=icons extension
+	gnome-extensions pack --force --out-dir=dist --extra-source=icons --extra-source=prefs.css extension
 	unzip -t $(ZIP)
 	bash scripts/verify-package.sh $(ZIP)
 
