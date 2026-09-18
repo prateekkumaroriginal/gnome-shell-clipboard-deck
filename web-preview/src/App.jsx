@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
+import {filterItems} from '../../extension/search.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -615,16 +616,8 @@ export default function App() {
     }, [open]);
 
     const sourceItems = view === 'trash' ? trash : items;
-    const visibleItems = useMemo(() => {
-        const needle = query.trim().toLocaleLowerCase();
-        if (!needle)
-            return sourceItems;
-        return sourceItems.filter(item => (
-            item.nickname?.toLocaleLowerCase().includes(needle) ||
-            item.text.toLocaleLowerCase().includes(needle) ||
-            (item.type === 'image' && 'screenshot image'.includes(needle))
-        ));
-    }, [query, sourceItems]);
+    const visibleItems = useMemo(() =>
+        filterItems(sourceItems, query), [query, sourceItems]);
 
     useEffect(() => {
         if (visibleItems.length === 0)

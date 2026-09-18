@@ -9,6 +9,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {ensureActorVisibleInScrollView} from 'resource:///org/gnome/shell/misc/animationUtils.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {filterItems} from './search.js';
 
 const HISTORY_LIMIT = 200;
 const MAX_ITEM_CHARS = 20_000;
@@ -1850,29 +1851,22 @@ class ClipboardPopup {
         this._restoreAllButton.opacity =
             this._restoreAllButton.reactive ? 255 : 96;
 
-        const query = this._search.get_text().trim().toLocaleLowerCase();
+        const query = this._search.get_text();
         const items = this._showTrash
             ? this._extension.store.archived()
             : this._extension.store.ordered();
-        this._visibleItems = items.filter(item => {
-            if (!query)
-                return true;
-            if (item.nickname?.toLocaleLowerCase().includes(query))
-                return true;
-            return item.type === 'text'
-                ? item.text.toLocaleLowerCase().includes(query)
-                : 'screenshot image'.includes(query);
-        });
+        this._visibleItems = filterItems(items, query);
+        const hasQuery = Boolean(query.trim());
 
         if ((!this._showTrash && this._extension.paused) ||
             this._visibleItems.length === 0) {
             const text = this._showTrash
-                ? query
+                ? hasQuery
                     ? 'No archived items match this search.'
                     : 'Recycle Bin is empty. Archived items stay here for seven days.'
                 : this._extension.paused
                 ? 'Capture is paused. Your saved history is still available after you resume.'
-                : query
+                : hasQuery
                     ? 'No copied items match this search.'
                     : 'Copy something, then use your configured shortcut to find it here.';
             this._list.add_child(new St.Label({

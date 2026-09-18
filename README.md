@@ -8,6 +8,7 @@ compact Windows-inspired interface.
 
 - Search up to 200 recent text and image entries.
 - Give any entry a searchable nickname with `Ctrl+N` or its `#` button.
+- Start a search with `#` to put matching nicknames before content matches.
 - See screenshot thumbnails and put a saved screenshot back on the clipboard.
 - Navigate with `Up` and `Down`.
 - Press `Enter` to copy and attempt to paste the selected entry.

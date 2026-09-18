@@ -53,7 +53,7 @@ One modal Shell actor containing header, search, history list, and empty state. 
 
 ### Search
 
-Always visible. Placeholder: “Search copied items or nicknames”. There is no leading search icon; the field is recognizable from its placement and placeholder. Focus is available immediately, with a blinking insertion caret, but arrow navigation works without requiring pointer focus.
+Always visible. Placeholder: “Search copied items or nicknames”. A query that starts with `#` searches without the marker and puts matching nicknames before matching clipboard content. Existing pin and recency order remains intact within each group. There is no leading search icon; the field is recognizable from its placement and placeholder. Focus is available immediately, with a blinking insertion caret, but arrow navigation works without requiring pointer focus.
 
 ### History Item
 
