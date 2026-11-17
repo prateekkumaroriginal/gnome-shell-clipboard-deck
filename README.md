@@ -6,7 +6,7 @@ compact Windows-inspired interface.
 
 ## Features
 
-- Search up to 200 recent text and image entries.
+- Search up to 200 recent text and image entries, plus entries with `#` nicknames that do not count toward that limit.
 - Give any entry a searchable nickname with `Ctrl+N` or its `#` button.
 - Start a search with `#` to put matching nicknames before content matches.
 - See screenshot thumbnails and put a saved screenshot back on the clipboard.
@@ -54,7 +54,9 @@ and image files are written with mode `0600`. Clipboard histories can contain
 passwords, tokens, and other sensitive content; pause capture when handling sensitive data.
 Entries longer than 20,000 characters are ignored.
 Individual images larger than 25 MiB are ignored, and saved images are capped
-at 250 MiB total.
+at 250 MiB total, including images with nicknames. Clearing an entry's nickname
+returns it to the 200-entry limit. Pinning alone does not exempt an entry from
+that limit.
 
 ## Build and test
 

@@ -405,6 +405,7 @@ class HistoryStore {
             item.nickname = nickname;
         else
             delete item.nickname;
+        this._prune();
         this.scheduleSave();
     }
 
@@ -540,18 +541,21 @@ class HistoryStore {
         ];
         const kept = [];
         const removedImages = [];
+        let ordinaryCount = 0;
         let imageBytes = 0;
 
         for (const item of ordered) {
             const nextImageBytes = imageBytes +
                 (item.type === 'image' ? item.byteSize : 0);
-            if (kept.length >= HISTORY_LIMIT ||
+            if ((!item.nickname && ordinaryCount >= HISTORY_LIMIT) ||
                 nextImageBytes > IMAGE_CACHE_LIMIT) {
                 if (item.type === 'image')
                     removedImages.push(item);
                 continue;
             }
             kept.push(item);
+            if (!item.nickname)
+                ordinaryCount++;
             imageBytes = nextImageBytes;
         }
         this.items = [...kept, ...archived];
