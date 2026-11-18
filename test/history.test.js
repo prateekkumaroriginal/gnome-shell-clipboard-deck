@@ -31,6 +31,37 @@ function entries(count, extra = {}) {
     }));
 }
 
+test('editing a text entry preserves its metadata and schedules a save', () => {
+    const [item] = entries(1, {pinned: true, nickname: 'Saved'});
+    const original = {...item};
+    const store = createStore([item]);
+    let saves = 0;
+    store.scheduleSave = () => saves++;
+
+    assert.equal(store.setText(item.id, '  First line\nSecond line  '), '');
+
+    assert.deepEqual(store.items, [{...original, text: '  First line\nSecond line  '}]);
+    assert.equal(saves, 1);
+});
+
+test('invalid text edits leave history intact and skip saving', () => {
+    const [item, existing] = entries(2);
+    const archived = {id: 'archived', type: 'text', text: 'Archived', deletedAt: 1};
+    const image = {id: 'image', type: 'image'};
+    const store = createStore([item, existing, archived, image]);
+    store.scheduleSave = () => assert.fail('Invalid edits should not save');
+
+    assert.ok(store.setText(item.id, '  \n'));
+    assert.ok(store.setText(item.id, 'a'.repeat(20_001)));
+    assert.ok(store.setText(item.id, existing.text));
+    assert.ok(store.setText(archived.id, 'Replacement'));
+    assert.ok(store.setText(image.id, 'Replacement'));
+    assert.ok(store.setText('missing', 'Replacement'));
+    assert.equal(item.text, 'Entry 0');
+    assert.equal(archived.text, 'Archived');
+    assert.equal(image.text, undefined);
+});
+
 test('nicknamed text and images survive beyond the 200 ordinary entries', () => {
     const ordinary = entries(201);
     const tagged = entries(201, {nickname: 'Saved', createdAt: 0});

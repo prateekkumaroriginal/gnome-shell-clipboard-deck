@@ -44,6 +44,13 @@ const ACTIONS = [
         defaultShortcut: {keyval: Gdk.KEY_n, modifiers: Gdk.ModifierType.CONTROL_MASK},
     },
     {
+        id: 'edit',
+        title: 'Edit selected text',
+        subtitle: 'Changes the text saved in history',
+        immutable: true,
+        defaultShortcut: {keyval: Gdk.KEY_F2, modifiers: 0},
+    },
+    {
         id: 'archive',
         settingsKey: 'shortcut-archive',
         title: 'Move to Recycle Bin',

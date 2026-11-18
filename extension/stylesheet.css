@@ -342,6 +342,47 @@
   background-color: #ffc6c1;
 }
 
+.wc-text-edit-dialog {
+  width: 396px;
+}
+
+.wc-text-edit-scroll {
+  height: 184px;
+  background-color: #1c1e25;
+  border: 1px solid #555966;
+  border-radius: 6px;
+}
+
+.wc-text-edit-entry {
+  padding: 8px 16px 8px 10px;
+  color: #f2f2f6;
+  background-color: transparent;
+  border: none;
+  selection-background-color: #7c3d81;
+  selected-color: #ffffff;
+  box-shadow: none;
+}
+
+.wc-text-edit-entry:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.wc-text-edit-error {
+  color: #ffb4ae;
+  font-size: 13px;
+}
+
+.wc-text-edit-save {
+  color: #211a0e;
+  background-color: #e7aa3d;
+}
+
+.wc-text-edit-save:hover,
+.wc-text-edit-save:focus {
+  background-color: #f2bc58;
+}
+
 .wc-empty {
   padding: 70px 20px;
   color: #abadb7;
