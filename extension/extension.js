@@ -1172,14 +1172,14 @@ class ClipboardPopup {
 
             const [ok, x, y] = text.transform_stage_point(...event.get_coords());
             if (ok) {
-                const byteOffset = text.coords_to_position(x, y);
-                const prefix = new TextEncoder().encode(text.get_text()).subarray(0, byteOffset);
-                // Hit testing uses UTF-8 bytes. Cursor positions count characters.
-                let position = 0;
-                for (const byte of prefix) {
-                    if ((byte & 0xc0) !== 0x80)
-                        position++;
-                }
+                const [offsetX, offsetY] = text.get_layout_offsets();
+                const scale = text.get_resource_scale() * Pango.SCALE;
+                const [, byteIndex, trailing] = text.get_layout().xy_to_index(
+                    Math.ceil((x - offsetX) * scale),
+                    Math.ceil((y - offsetY) * scale)
+                );
+                // Pango counts UTF-8 bytes in byteIndex and characters in trailing.
+                const position = GLib.utf8_strlen(text.get_text(), byteIndex) + trailing;
                 this._pasteTextDraft(St.ClipboardType.PRIMARY, position);
             }
             return Clutter.EVENT_STOP;
