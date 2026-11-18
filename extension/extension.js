@@ -1171,8 +1171,17 @@ class ClipboardPopup {
                 return Clutter.EVENT_PROPAGATE;
 
             const [ok, x, y] = text.transform_stage_point(...event.get_coords());
-            if (ok)
-                this._pasteTextDraft(St.ClipboardType.PRIMARY, text.coords_to_position(x, y));
+            if (ok) {
+                const byteOffset = text.coords_to_position(x, y);
+                const prefix = new TextEncoder().encode(text.get_text()).subarray(0, byteOffset);
+                // Hit testing uses UTF-8 bytes. Cursor positions count characters.
+                let position = 0;
+                for (const byte of prefix) {
+                    if ((byte & 0xc0) !== 0x80)
+                        position++;
+                }
+                this._pasteTextDraft(St.ClipboardType.PRIMARY, position);
+            }
             return Clutter.EVENT_STOP;
         });
         content.add_child(this._textEntry);
