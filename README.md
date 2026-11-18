@@ -15,6 +15,7 @@ compact Windows-inspired interface.
 - Press `Shift+Enter` to copy without direct paste.
 - Press `Ctrl+P` to pin or unpin an entry.
 - Press `Ctrl+N` to add, edit, or clear the selected entry's nickname.
+- Press `F2` or click the pencil to edit a text entry. Press `Ctrl+Enter` to save or `Escape` to cancel. Use the usual copy or paste action to put the saved text on the system clipboard.
 - Archive an entry with its archive-box icon or `Delete`; archived entries can be restored individually or all at once from the Recycle Bin for seven days.
 - Press `Escape` to close the popup.
 - Customize the global shortcut plus copy-only, pin, and nickname shortcuts in the in-panel Settings view. `Enter` for paste and `Delete` for archiving remain fixed.
@@ -29,7 +30,7 @@ by the user. After installation:
 2. Open Clipboard Deck's preferences.
 3. Select **Open Clipboard Deck**, then press your preferred key combination.
 
-After the initial shortcut is set, the gear in Clipboard Deck opens the same controls inline. Paste, archive, arrow-key navigation, and `Escape` remain fixed so the popup is always navigable and dismissible. Duplicate shortcuts and unmodified typing keys are rejected.
+After the initial shortcut is set, the gear in Clipboard Deck opens the same controls inline. Paste, edit, archive, arrow-key navigation, and `Escape` use fixed keys. Duplicate shortcuts and unmodified typing keys are rejected.
 
 The same preference window can be opened from a terminal:
 

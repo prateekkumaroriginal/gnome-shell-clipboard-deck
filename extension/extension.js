@@ -1,6 +1,7 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
@@ -13,6 +14,7 @@ import {filterItems} from './search.js';
 
 const HISTORY_LIMIT = 200;
 const MAX_ITEM_CHARS = 20_000;
+const TEXT_LENGTH_ERROR = 'Text must be 20,000 characters or fewer.';
 const MAX_NICKNAME_CHARS = 80;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const IMAGE_CACHE_LIMIT = 250 * 1024 * 1024;
@@ -39,6 +41,7 @@ const LOCAL_SHORTCUTS = [
     ['shortcut-copy', 'Copy without pasting', null],
     ['shortcut-pin', 'Pin or unpin item', null],
     ['shortcut-nickname', 'Add or edit nickname', null],
+    [null, 'Edit selected text', 'F2'],
     [null, 'Move item to Recycle Bin', 'Delete'],
 ];
 const SETTINGS_ACTIONS = [
@@ -266,6 +269,15 @@ function centerActionGlyph(glyph) {
     return slot;
 }
 
+const ClipboardTextEntry = GObject.registerClass(
+class ClipboardTextEntry extends St.Entry {
+    vfunc_get_preferred_height(forWidth) {
+        // Give the scroll view the height of all wrapped lines.
+        const [, height] = super.vfunc_get_preferred_height(forWidth);
+        return [height, height];
+    }
+});
+
 class HistoryStore {
     constructor(uuid) {
         this._directory = GLib.build_filenamev([GLib.get_user_cache_dir(), uuid]);
@@ -407,6 +419,25 @@ class HistoryStore {
             delete item.nickname;
         this._prune();
         this.scheduleSave();
+    }
+
+    setText(id, text) {
+        const item = this.items.find(candidate => candidate.id === id);
+        if (item?.type !== 'text' || this._isArchived(item))
+            return 'This item is no longer available to edit.';
+        if (!text.trim())
+            return 'Enter some text before saving.';
+        if (text.length > MAX_ITEM_CHARS)
+            return TEXT_LENGTH_ERROR;
+        if (text === item.text)
+            return '';
+        if (this.items.some(candidate =>
+            candidate.type === 'text' && candidate.text === text))
+            return 'An item with this text already exists.';
+
+        item.text = text;
+        this.scheduleSave();
+        return '';
     }
 
     archive(id) {
@@ -670,6 +701,7 @@ class ClipboardPopup {
         this._caretVisible = false;
         this._tooltipOwner = null;
         this._editingNicknameId = null;
+        this._textEditSession = null;
         this._showTrash = false;
         this._showHelp = false;
         this._showSettings = false;
@@ -763,6 +795,7 @@ class ClipboardPopup {
         this._nicknameEditor.visible = false;
         this._clearConfirmOverlay.visible = false;
         this._nicknameEntry.clutter_text.set_cursor_visible(false);
+        this._hideTextEditor();
         this._hideTooltip();
         try {
             this._stopCaretBlink();
@@ -1079,6 +1112,9 @@ class ClipboardPopup {
         this._buildShortcutRecorder();
         this._overlay.add_child(this._shortcutRecorderOverlay);
 
+        this._buildTextEditor();
+        this._overlay.add_child(this._textEditOverlay);
+
         this._tooltip = new St.Label({
             style_class: 'wc-tooltip',
             visible: false,
@@ -1086,6 +1122,110 @@ class ClipboardPopup {
         this._overlay.add_child(this._tooltip);
 
         Main.layoutManager.uiGroup.add_child(this._overlay);
+    }
+
+    _buildTextEditor() {
+        this._textEditOverlay = new St.Widget({
+            style_class: 'wc-confirm-overlay',
+            reactive: true,
+            visible: false,
+            layout_manager: new Clutter.BinLayout(),
+        });
+        const dialog = new St.BoxLayout({
+            style_class: 'wc-confirm-dialog wc-text-edit-dialog',
+            vertical: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        dialog.add_child(new St.Label({
+            style_class: 'wc-confirm-title',
+            text: 'Edit clipboard text',
+        }));
+
+        const scroll = new St.ScrollView({
+            style_class: 'wc-text-edit-scroll',
+            overlay_scrollbars: true,
+            reactive: true,
+        });
+        scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
+        const content = new St.BoxLayout({vertical: true});
+        this._textEntry = new ClipboardTextEntry({
+            style_class: 'wc-text-edit-entry',
+            accessible_name: 'Clipboard text',
+            can_focus: true,
+        });
+        const text = this._textEntry.clutter_text;
+        text.set_single_line_mode(false);
+        text.set_activatable(false);
+        text.set_line_wrap(true);
+        text.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        text.set_max_length(MAX_ITEM_CHARS + 1);
+        text.connect('cursor-changed', () => {
+            const rect = text.get_cursor_rect();
+            const y = text.get_y() + rect.get_y();
+            scroll.vadjustment.clamp_page(y - 12, y + rect.get_height() + 12);
+        });
+        text.connect('captured-event', (_actor, event) => {
+            if (event.type() !== Clutter.EventType.BUTTON_PRESS ||
+                event.get_button() !== 2 || !St.Settings.get().primary_paste)
+                return Clutter.EVENT_PROPAGATE;
+
+            const [ok, x, y] = text.transform_stage_point(...event.get_coords());
+            if (ok) {
+                const [offsetX, offsetY] = text.get_layout_offsets();
+                const scale = text.get_resource_scale() * Pango.SCALE;
+                const [, byteIndex, trailing] = text.get_layout().xy_to_index(
+                    Math.ceil((x - offsetX) * scale),
+                    Math.ceil((y - offsetY) * scale)
+                );
+                // Pango counts UTF-8 bytes in byteIndex and characters in trailing.
+                const position = GLib.utf8_strlen(text.get_text(), byteIndex) + trailing;
+                this._pasteTextDraft(St.ClipboardType.PRIMARY, position);
+            }
+            return Clutter.EVENT_STOP;
+        });
+        content.add_child(this._textEntry);
+        scroll.set_child(content);
+        dialog.add_child(scroll);
+
+        this._textEditError = new St.Label({
+            style_class: 'wc-text-edit-error',
+            visible: false,
+        });
+        dialog.add_child(this._textEditError);
+        text.connect('text-changed', () => this._textEditError.hide());
+
+        const actions = new St.BoxLayout({
+            style_class: 'wc-confirm-actions',
+        });
+        actions.add_child(new St.Label({
+            style_class: 'wc-confirm-description',
+            text: 'Ctrl+Enter to save',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        actions.add_child(new St.Widget({x_expand: true}));
+
+        const cancel = new St.Button({
+            style_class: 'wc-confirm-cancel',
+            label: 'Cancel',
+            can_focus: true,
+        });
+        cancel.connect('clicked', () => this._finishTextEdit(false));
+        this._usePointerCursor(cancel);
+        actions.add_child(cancel);
+
+        const save = new St.Button({
+            style_class: 'wc-confirm-cancel wc-text-edit-save',
+            label: 'Save',
+            can_focus: true,
+        });
+        save.connect('clicked', () => this._finishTextEdit(true));
+        this._usePointerCursor(save);
+        actions.add_child(save);
+        dialog.add_child(actions);
+        this._textEditOverlay.add_child(dialog);
+        this._textEditOverlay.connect('captured-event', (_actor, event) =>
+            this._onTextEditEvent(event));
     }
 
     _buildSettingsView() {
@@ -1233,6 +1373,12 @@ class ClipboardPopup {
         }));
         addSection('While Clipboard Deck is open',
             SETTINGS_ACTIONS.filter(action => !action.global), true);
+        this._editShortcutConflict = new St.Label({
+            style_class: 'wc-settings-note',
+            text: 'F2 edits text entries. Reassign any other shortcut that uses F2.',
+            visible: false,
+        });
+        content.add_child(this._editShortcutConflict);
 
         scroll.set_child(content);
         this._settingsView.add_child(scroll);
@@ -1474,16 +1620,20 @@ class ClipboardPopup {
 
     _refreshSettingsRows() {
         let hasChanges = false;
+        let hasEditConflict = false;
         for (const action of SETTINGS_ACTIONS) {
             const row = this._settingsRows.get(action.id);
             if (!row)
                 continue;
-            const label = this._settingsShortcutLabel(action);
+            const {keyval, modifiers, label} = this._settingsShortcut(action);
             const changed = label !== action.defaultShortcut.label;
             this._setShortcutKeyCaps(row.keyCaps, label);
             row.resetButton.visible = changed;
             hasChanges ||= changed;
+            hasEditConflict ||= !action.global && keyval === Clutter.KEY_F2 &&
+                modifiers === 0;
         }
+        this._editShortcutConflict.visible = hasEditConflict;
         this._settingsResetAllButton.reactive = hasChanges;
         this._settingsResetAllButton.opacity = hasChanges ? 255 : 96;
     }
@@ -1574,6 +1724,8 @@ class ClipboardPopup {
             conflict = 'Paste selected item';
         } else if (shortcut.modifiers === 0 && symbol === Clutter.KEY_Delete) {
             conflict = 'Move to Recycle Bin';
+        } else if (shortcut.modifiers === 0 && symbol === Clutter.KEY_F2) {
+            conflict = 'Edit selected text';
         } else {
             conflict = SETTINGS_ACTIONS.find(action =>
                 action.id !== this._recordingAction.id &&
@@ -1659,6 +1811,7 @@ class ClipboardPopup {
             [this._extensionIcon('archive-symbolic.svg', 14), 'Archive', 'Move an item to Recycle Bin'],
             [new St.Icon({icon_name: 'document-revert-symbolic', icon_size: 14}), 'Restore', 'Restore archived items'],
             [this._extensionIcon('hash-symbolic.svg', 14), 'Nickname', 'Add or edit a nickname'],
+            [new St.Icon({icon_name: 'document-edit-symbolic', icon_size: 14}), 'Edit', 'Change the text of an item'],
             [createPinGlyph(true), 'Pin', 'Keep an item in history'],
             [new St.Icon({icon_name: 'user-trash-symbolic', icon_size: 14}), 'Delete', 'Delete an item permanently'],
         ];
@@ -1826,6 +1979,7 @@ class ClipboardPopup {
         this._clearConfirmOverlay.set_size(monitor.width, monitor.height);
         this._shortcutRecorderOverlay.set_position(0, 0);
         this._shortcutRecorderOverlay.set_size(monitor.width, monitor.height);
+        this._textEditOverlay.set_size(monitor.width, monitor.height);
         this._popup.set_position(popupX, popupY);
         this._popup.set_size(POPUP_WIDTH, popupHeight);
         this._settingsView.set_position(
@@ -2001,6 +2155,7 @@ class ClipboardPopup {
                 const rowActions = this._rowActions[index];
                 if (archived || !rowActions ||
                     rowActions.mainButton.hover ||
+                    rowActions.editButton?.hover ||
                     rowActions.nicknameButton?.hover ||
                     rowActions.pinButton?.hover ||
                     rowActions.archiveButton?.hover ||
@@ -2026,6 +2181,25 @@ class ClipboardPopup {
     }
 
     _addHistoryActions(row, item, index) {
+        let editButton = null;
+        if (item.type === 'text') {
+            editButton = new St.Button({
+                style_class: 'wc-item-action wc-tag',
+                can_focus: false,
+                accessible_name: 'Edit clipboard text',
+                y_align: Clutter.ActorAlign.START,
+                visible: index === this._selectedIndex,
+                child: centerActionGlyph(new St.Icon({
+                    icon_name: 'document-edit-symbolic',
+                    icon_size: 14,
+                })),
+            });
+            editButton.connect('clicked', () => this._startTextEdit(item));
+            this._usePointerCursor(editButton);
+            this._addTooltip(editButton, 'Edit clipboard text');
+            row.add_child(editButton);
+        }
+
         const nicknameButton = new St.Button({
             style_class: item.nickname
                 ? 'wc-item-action wc-tag wc-tagged'
@@ -2095,7 +2269,7 @@ class ClipboardPopup {
         row.add_child(archiveButton);
         row.add_child(pinButton);
 
-        return {nicknameButton, pinButton, archiveButton};
+        return {editButton, nicknameButton, pinButton, archiveButton};
     }
 
     _addTrashActions(row, item, index) {
@@ -2228,6 +2402,111 @@ class ClipboardPopup {
 
         global.stage.set_key_focus(this._search.clutter_text);
         this._startCaretBlink();
+    }
+
+    _startTextEdit(item) {
+        this._finishNicknameEdit(false);
+        this._textEditSession = {id: item.id};
+        this._textEntry.set_text(item.text);
+        this._hideTooltip();
+        this._stopCaretBlink();
+        this._textEditOverlay.show();
+        const text = this._textEntry.clutter_text;
+        global.stage.set_key_focus(text);
+        text.set_cursor_position(0);
+        text.set_selection_bound(0);
+    }
+
+    _hideTextEditor() {
+        this._textEditSession = null;
+        this._textEditOverlay.hide();
+        this._textEntry.set_text('');
+        this._textEditError.hide();
+    }
+
+    _finishTextEdit(save) {
+        const {id} = this._textEditSession;
+        if (save) {
+            const error = this._extension.store.setText(id, this._textEntry.get_text());
+            if (error) {
+                this._showTextEditError(error);
+                global.stage.set_key_focus(this._textEntry.clutter_text);
+                return;
+            }
+        }
+        this._hideTextEditor();
+        this._render();
+        const index = this._visibleItems.findIndex(item => item.id === id);
+        if (index >= 0) {
+            this._selectedIndex = index;
+            this._updateSelection();
+        }
+        this._focusSearch();
+    }
+
+    _showTextEditError(error) {
+        this._textEditError.set_text(error);
+        this._textEditError.show();
+    }
+
+    _onTextEditEvent(event) {
+        if (event.type() !== Clutter.EventType.KEY_PRESS)
+            return Clutter.EVENT_PROPAGATE;
+
+        const symbol = event.get_key_symbol();
+        const modifiers = event.get_state() & SHORTCUT_MODIFIER_MASK;
+        const control = Clutter.ModifierType.CONTROL_MASK;
+        const shift = Clutter.ModifierType.SHIFT_MASK;
+        if (symbol === Clutter.KEY_Escape) {
+            this._finishTextEdit(false);
+            return Clutter.EVENT_STOP;
+        }
+        if ((symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) &&
+            modifiers === control) {
+            this._finishTextEdit(true);
+            return Clutter.EVENT_STOP;
+        }
+        const text = this._textEntry.clutter_text;
+        if (global.stage.get_key_focus() !== text)
+            return Clutter.EVENT_PROPAGATE;
+
+        if (((modifiers & control) && normalizedShortcutKeyval(symbol) === Clutter.KEY_v) ||
+            ((modifiers & shift) && symbol === Clutter.KEY_Insert)) {
+            this._pasteTextDraft(St.ClipboardType.CLIPBOARD);
+            return Clutter.EVENT_STOP;
+        }
+        if ((modifiers & ~shift) === control &&
+            (symbol === Clutter.KEY_Home || symbol === Clutter.KEY_End)) {
+            const position = symbol === Clutter.KEY_Home ? 0 : -1;
+            text.set_cursor_position(position);
+            if (!(modifiers & shift))
+                text.set_selection_bound(position);
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _pasteTextDraft(clipboardType, position = null) {
+        const session = this._textEditSession;
+        St.Clipboard.get_default().get_text(clipboardType, (_clipboard, pasted) => {
+            if (!pasted || session !== this._textEditSession)
+                return;
+
+            const text = this._textEntry.clutter_text;
+            const selectedLength = position === null ? text.get_selection().length : 0;
+            if (text.get_text().length - selectedLength + pasted.length > MAX_ITEM_CHARS) {
+                this._showTextEditError(TEXT_LENGTH_ERROR);
+                return;
+            }
+
+            if (position === null) {
+                text.delete_selection();
+            } else {
+                text.set_cursor_position(position);
+                text.set_selection_bound(position);
+            }
+            text.insert_text(pasted, text.get_cursor_position());
+        });
     }
 
     _startNicknameEdit(item) {
@@ -2364,6 +2643,8 @@ class ClipboardPopup {
     }
 
     _onKeyPress(event) {
+        if (this._textEditOverlay.visible)
+            return Clutter.EVENT_PROPAGATE;
         if (this._recordingAction)
             return this._onShortcutRecorderKeyPress(event);
 
@@ -2389,6 +2670,16 @@ class ClipboardPopup {
 
         if (this._showSettings)
             return Clutter.EVENT_PROPAGATE;
+
+        if (symbol === Clutter.KEY_F2 && modifiers === 0) {
+            if (this._clearConfirmOverlay.visible)
+                return Clutter.EVENT_STOP;
+            const item = this._visibleItems[this._selectedIndex];
+            if (item?.type === 'text' && !this._showTrash && !this._extension.paused) {
+                this._startTextEdit(item);
+                return Clutter.EVENT_STOP;
+            }
+        }
 
         if (symbol === Clutter.KEY_Down || symbol === Clutter.KEY_Up) {
             if (this._visibleItems.length === 0)
@@ -2474,6 +2765,8 @@ class ClipboardPopup {
             return;
         }
 
+        if (actions.editButton)
+            actions.editButton.visible = selected || hovered;
         actions.nicknameButton.visible = selected || hovered;
         actions.pinButton.visible = selected || hovered || actions.pinned;
         actions.archiveButton.visible = selected || hovered;
