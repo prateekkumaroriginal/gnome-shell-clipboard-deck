@@ -14,6 +14,7 @@ import {filterItems} from './search.js';
 
 const HISTORY_LIMIT = 200;
 const MAX_ITEM_CHARS = 20_000;
+const TEXT_LENGTH_ERROR = 'Text must be 20,000 characters or fewer.';
 const MAX_NICKNAME_CHARS = 80;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const IMAGE_CACHE_LIMIT = 250 * 1024 * 1024;
@@ -427,7 +428,7 @@ class HistoryStore {
         if (!text.trim())
             return 'Enter some text before saving.';
         if (text.length > MAX_ITEM_CHARS)
-            return 'Text must be 20,000 characters or fewer.';
+            return TEXT_LENGTH_ERROR;
         if (text === item.text)
             return '';
         if (this.items.some(candidate =>
@@ -700,7 +701,7 @@ class ClipboardPopup {
         this._caretVisible = false;
         this._tooltipOwner = null;
         this._editingNicknameId = null;
-        this._editingTextId = null;
+        this._textEditSession = null;
         this._showTrash = false;
         this._showHelp = false;
         this._showSettings = false;
@@ -1158,12 +1159,21 @@ class ClipboardPopup {
         text.set_activatable(false);
         text.set_line_wrap(true);
         text.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
-        // Keep one extra character so a large paste cannot silently save truncated text.
         text.set_max_length(MAX_ITEM_CHARS + 1);
         text.connect('cursor-changed', () => {
             const rect = text.get_cursor_rect();
             const y = text.get_y() + rect.get_y();
             scroll.vadjustment.clamp_page(y - 12, y + rect.get_height() + 12);
+        });
+        text.connect('captured-event', (_actor, event) => {
+            if (event.type() !== Clutter.EventType.BUTTON_PRESS ||
+                event.get_button() !== 2 || !St.Settings.get().primary_paste)
+                return Clutter.EVENT_PROPAGATE;
+
+            const [ok, x, y] = text.transform_stage_point(...event.get_coords());
+            if (ok)
+                this._pasteTextDraft(St.ClipboardType.PRIMARY, text.coords_to_position(x, y));
+            return Clutter.EVENT_STOP;
         });
         content.add_child(this._textEntry);
         scroll.set_child(content);
@@ -1205,33 +1215,8 @@ class ClipboardPopup {
         actions.add_child(save);
         dialog.add_child(actions);
         this._textEditOverlay.add_child(dialog);
-        this._textEditOverlay.connect('captured-event', (_actor, event) => {
-            if (event.type() !== Clutter.EventType.KEY_PRESS)
-                return Clutter.EVENT_PROPAGATE;
-
-            const symbol = event.get_key_symbol();
-            const modifiers = event.get_state() & SHORTCUT_MODIFIER_MASK;
-            if (symbol === Clutter.KEY_Escape) {
-                this._finishTextEdit(false);
-                return Clutter.EVENT_STOP;
-            }
-            if ((symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) &&
-                modifiers === Clutter.ModifierType.CONTROL_MASK) {
-                this._finishTextEdit(true);
-                return Clutter.EVENT_STOP;
-            }
-            const shift = Clutter.ModifierType.SHIFT_MASK;
-            if ((modifiers & ~shift) === Clutter.ModifierType.CONTROL_MASK &&
-                (symbol === Clutter.KEY_Home || symbol === Clutter.KEY_End) &&
-                global.stage.get_key_focus() === text) {
-                const position = symbol === Clutter.KEY_Home ? 0 : -1;
-                text.set_cursor_position(position);
-                if (!(modifiers & shift))
-                    text.set_selection_bound(position);
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+        this._textEditOverlay.connect('captured-event', (_actor, event) =>
+            this._onTextEditEvent(event));
     }
 
     _buildSettingsView() {
@@ -1379,6 +1364,12 @@ class ClipboardPopup {
         }));
         addSection('While Clipboard Deck is open',
             SETTINGS_ACTIONS.filter(action => !action.global), true);
+        this._editShortcutConflict = new St.Label({
+            style_class: 'wc-settings-note',
+            text: 'F2 edits text entries. Reassign any other shortcut that uses F2.',
+            visible: false,
+        });
+        content.add_child(this._editShortcutConflict);
 
         scroll.set_child(content);
         this._settingsView.add_child(scroll);
@@ -1620,16 +1611,20 @@ class ClipboardPopup {
 
     _refreshSettingsRows() {
         let hasChanges = false;
+        let hasEditConflict = false;
         for (const action of SETTINGS_ACTIONS) {
             const row = this._settingsRows.get(action.id);
             if (!row)
                 continue;
-            const label = this._settingsShortcutLabel(action);
+            const {keyval, modifiers, label} = this._settingsShortcut(action);
             const changed = label !== action.defaultShortcut.label;
             this._setShortcutKeyCaps(row.keyCaps, label);
             row.resetButton.visible = changed;
             hasChanges ||= changed;
+            hasEditConflict ||= !action.global && keyval === Clutter.KEY_F2 &&
+                modifiers === 0;
         }
+        this._editShortcutConflict.visible = hasEditConflict;
         this._settingsResetAllButton.reactive = hasChanges;
         this._settingsResetAllButton.opacity = hasChanges ? 255 : 96;
     }
@@ -2402,7 +2397,7 @@ class ClipboardPopup {
 
     _startTextEdit(item) {
         this._finishNicknameEdit(false);
-        this._editingTextId = item.id;
+        this._textEditSession = {id: item.id};
         this._textEntry.set_text(item.text);
         this._hideTooltip();
         this._stopCaretBlink();
@@ -2414,19 +2409,18 @@ class ClipboardPopup {
     }
 
     _hideTextEditor() {
-        this._editingTextId = null;
+        this._textEditSession = null;
         this._textEditOverlay.hide();
         this._textEntry.set_text('');
         this._textEditError.hide();
     }
 
     _finishTextEdit(save) {
-        const id = this._editingTextId;
+        const {id} = this._textEditSession;
         if (save) {
             const error = this._extension.store.setText(id, this._textEntry.get_text());
             if (error) {
-                this._textEditError.set_text(error);
-                this._textEditError.show();
+                this._showTextEditError(error);
                 global.stage.set_key_focus(this._textEntry.clutter_text);
                 return;
             }
@@ -2439,6 +2433,71 @@ class ClipboardPopup {
             this._updateSelection();
         }
         this._focusSearch();
+    }
+
+    _showTextEditError(error) {
+        this._textEditError.set_text(error);
+        this._textEditError.show();
+    }
+
+    _onTextEditEvent(event) {
+        if (event.type() !== Clutter.EventType.KEY_PRESS)
+            return Clutter.EVENT_PROPAGATE;
+
+        const symbol = event.get_key_symbol();
+        const modifiers = event.get_state() & SHORTCUT_MODIFIER_MASK;
+        const control = Clutter.ModifierType.CONTROL_MASK;
+        const shift = Clutter.ModifierType.SHIFT_MASK;
+        if (symbol === Clutter.KEY_Escape) {
+            this._finishTextEdit(false);
+            return Clutter.EVENT_STOP;
+        }
+        if ((symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) &&
+            modifiers === control) {
+            this._finishTextEdit(true);
+            return Clutter.EVENT_STOP;
+        }
+        const text = this._textEntry.clutter_text;
+        if (global.stage.get_key_focus() !== text)
+            return Clutter.EVENT_PROPAGATE;
+
+        if (((modifiers & control) && normalizedShortcutKeyval(symbol) === Clutter.KEY_v) ||
+            ((modifiers & shift) && symbol === Clutter.KEY_Insert)) {
+            this._pasteTextDraft(St.ClipboardType.CLIPBOARD);
+            return Clutter.EVENT_STOP;
+        }
+        if ((modifiers & ~shift) === control &&
+            (symbol === Clutter.KEY_Home || symbol === Clutter.KEY_End)) {
+            const position = symbol === Clutter.KEY_Home ? 0 : -1;
+            text.set_cursor_position(position);
+            if (!(modifiers & shift))
+                text.set_selection_bound(position);
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _pasteTextDraft(clipboardType, position = null) {
+        const session = this._textEditSession;
+        St.Clipboard.get_default().get_text(clipboardType, (_clipboard, pasted) => {
+            if (!pasted || session !== this._textEditSession)
+                return;
+
+            const text = this._textEntry.clutter_text;
+            const selectedLength = position === null ? text.get_selection().length : 0;
+            if (text.get_text().length - selectedLength + pasted.length > MAX_ITEM_CHARS) {
+                this._showTextEditError(TEXT_LENGTH_ERROR);
+                return;
+            }
+
+            if (position === null) {
+                text.delete_selection();
+            } else {
+                text.set_cursor_position(position);
+                text.set_selection_bound(position);
+            }
+            text.insert_text(pasted, text.get_cursor_position());
+        });
     }
 
     _startNicknameEdit(item) {
@@ -2603,6 +2662,16 @@ class ClipboardPopup {
         if (this._showSettings)
             return Clutter.EVENT_PROPAGATE;
 
+        if (symbol === Clutter.KEY_F2 && modifiers === 0) {
+            if (this._clearConfirmOverlay.visible)
+                return Clutter.EVENT_STOP;
+            const item = this._visibleItems[this._selectedIndex];
+            if (item?.type === 'text' && !this._showTrash && !this._extension.paused) {
+                this._startTextEdit(item);
+                return Clutter.EVENT_STOP;
+            }
+        }
+
         if (symbol === Clutter.KEY_Down || symbol === Clutter.KEY_Up) {
             if (this._visibleItems.length === 0)
                 return Clutter.EVENT_STOP;
@@ -2653,13 +2722,6 @@ class ClipboardPopup {
             const item = this._visibleItems[this._selectedIndex];
             if (item && !this._showTrash)
                 this._startNicknameEdit(item);
-            return Clutter.EVENT_STOP;
-        }
-
-        if (symbol === Clutter.KEY_F2 && modifiers === 0) {
-            const item = this._visibleItems[this._selectedIndex];
-            if (item?.type === 'text' && !this._showTrash && !this._extension.paused)
-                this._startTextEdit(item);
             return Clutter.EVENT_STOP;
         }
 
